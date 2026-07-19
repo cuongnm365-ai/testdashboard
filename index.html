@@ -42,7 +42,7 @@
                     <div><strong>Đồng bộ Google</strong><span>Lịch &amp; phân công công việc tự động cập nhật lên Google Calendar và Google Tasks.</span></div>
                 </div>
                 <div class="login-feature">
-                    <i class='bx bx-envelope-open-text'></i>
+                    <i class='bx bx-envelope'></i>
                     <div><strong>Soạn Email nhanh</strong><span>Khởi tạo email chăm sóc khách hàng theo mẫu chuẩn chỉ trong vài giây.</span></div>
                 </div>
             </div>
@@ -93,10 +93,14 @@
 
     <!-- ===================== APP SHELL (chỉ hiển thị sau khi đăng nhập) ===================== -->
     <div id="app-shell" style="display: none;">
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-brand">
                 <i class='bx bx-bot brand-icon'></i>
                 <span class="brand-text">G-PORTAL</span>
+                <button id="sidebar-pin-btn" class="sidebar-pin-btn" type="button" title="Ghim thanh điều hướng luôn mở rộng">
+                    <i class='bx bx-pin'></i>
+                </button>
             </div>
             <nav class="sidebar-menu">
                 <a href="#dashboard" class="menu-item active" data-target="dashboard">
@@ -109,7 +113,7 @@
                     <i class='bx bx-line-chart'></i><span class="menu-text">Năng Suất</span>
                 </a>
                 <a href="#email" class="menu-item" data-target="email">
-                    <i class='bx bx-envelope-open-text'></i><span class="menu-text">Soạn Email</span>
+                    <i class='bx bx-envelope'></i><span class="menu-text">Soạn Email</span>
                 </a>
                 <a href="#settings" class="menu-item" data-target="settings">
                     <i class='bx bx-cog'></i><span class="menu-text">Cài Đặt</span>
@@ -123,9 +127,14 @@
 
         <main class="main-container">
             <header class="main-header">
-                <div>
-                    <div class="page-title" id="current-page-title">Dashboard</div>
-                    <div class="page-subtitle" id="current-page-subtitle">Tổng quan năng suất &amp; KPI cá nhân</div>
+                <div class="main-header-left">
+                    <button id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" type="button" title="Mở danh mục chức năng">
+                        <i class='bx bx-menu'></i>
+                    </button>
+                    <div>
+                        <div class="page-title" id="current-page-title">Dashboard</div>
+                        <div class="page-subtitle" id="current-page-subtitle">Tổng quan năng suất &amp; KPI cá nhân</div>
+                    </div>
                 </div>
                 <div id="user-profile-box"></div>
             </header>
@@ -437,7 +446,7 @@
 
                         <!-- ===== Cấu hình module Soạn Email (gộp từ email-template-tool) ===== -->
                         <div class="ai-card span-2" style="margin-top: 6px; padding-bottom: 8px;">
-                            <h3 style="margin-bottom: 4px;"><i class='bx bx-envelope-open-text'></i> Cấu hình module Soạn Email</h3>
+                            <h3 style="margin-bottom: 4px;"><i class='bx bx-envelope'></i> Cấu hình module Soạn Email</h3>
                             <p style="font-size:12.5px; color: var(--text-muted); margin-bottom: 18px;">Áp dụng cho toàn bộ mẫu email ở mục "Soạn Email" — nhận diện Vùng miền để tự gắn CC, và địa chỉ BCC mặc định.</p>
 
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

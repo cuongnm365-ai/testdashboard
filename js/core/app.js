@@ -1,13 +1,17 @@
 /**
- * app.js - Khởi tạo ứng dụng: Theme, Router (chuyển trang), Login Gate
+ * app.js - Khởi tạo ứng dụng: Theme, Router (chuyển trang), Login Gate, Sidebar
  *
- * CẬP NHẬT (gộp Email Template Tool vào G-Portal):
- * - Bổ sung view mới "email" (module "Soạn Email") vào VIEW_META để Router
- *   nhận diện và chuyển trang bình thường như các module khác.
- * - Khi chuyển sang view "email", gọi renderEmailStatsIfVisible() (nếu tồn
- *   tại) để làm mới bảng thống kê khi người dùng đang đứng ở tab thống kê.
- * - Toàn bộ phần còn lại giữ nguyên logic gốc (Theme, Login Gate bằng
- *   token Google, Router chuyển view).
+ * CẬP NHẬT MỚI NHẤT:
+ * - Bổ sung chức năng GHIM (pin) thanh điều hướng bên trái: người dùng bấm nút
+ *   ghim ở góc trên sidebar để chọn "luôn mở rộng" thay vì mặc định tự thu gọn
+ *   và chỉ mở khi rê chuột vào. Trạng thái ghim được lưu ở localStorage
+ *   ('gportal_sidebar_pinned') nên vẫn giữ nguyên lựa chọn ở lần truy cập sau.
+ * - Bổ sung nút mở menu (hamburger) + lớp phủ (overlay) cho di động: trước đây
+ *   sidebar chỉ mở khi hover, mà điện thoại/máy tính bảng không có sự kiện
+ *   hover nên sidebar không thể mở được trên các thiết bị cảm ứng. Giờ có nút
+ *   hamburger ở góc trái Header (chỉ hiển thị khi màn hình hẹp) để mở/đóng
+ *   sidebar dạng drawer tạm thời (không ghi nhớ, khác với trạng thái Ghim).
+ * - Bổ sung view "email" (module Soạn Email) vào VIEW_META.
  */
 
 const AppState = { currentView: 'dashboard', theme: 'dark', isLoggedIn: false, userProfile: null };
@@ -21,9 +25,14 @@ const VIEW_META = {
     settings: { title: 'Cài Đặt', subtitle: 'Thiết lập ca làm việc, nhân sự, PCCV, tham số KPI & mẫu Email' }
 };
 
+const SIDEBAR_PIN_KEY = 'gportal_sidebar_pinned';
+const MOBILE_BREAKPOINT = 768;
+
 document.addEventListener('DOMContentLoaded', () => {
     try { initTheme(); } catch (e) { console.error('initTheme error:', e); }
     try { initThemeToggle(); } catch (e) { console.error('initThemeToggle error:', e); }
+    try { initSidebarPin(); } catch (e) { console.error('initSidebarPin error:', e); }
+    try { initMobileSidebarToggle(); } catch (e) { console.error('initMobileSidebarToggle error:', e); }
     try { initRouter(); } catch (e) { console.error('initRouter error:', e); }
     try { initLogoutButton(); } catch (e) { console.error('initLogoutButton error:', e); }
 
@@ -73,6 +82,69 @@ function initThemeToggle() {
     btn.addEventListener('click', () => {
         const next = AppState.theme === 'dark' ? 'light' : 'dark';
         setTheme(next);
+    });
+}
+
+/**
+ * GHIM (PIN) SIDEBAR — người dùng tự do chọn luôn mở rộng hay tự ẩn/hiện khi rê chuột.
+ * Trạng thái được ghi nhớ qua localStorage, áp dụng lại ngay khi tải trang.
+ */
+function initSidebarPin() {
+    const sidebar = document.getElementById('sidebar');
+    const pinBtn = document.getElementById('sidebar-pin-btn');
+    if (!sidebar || !pinBtn) return;
+
+    const applyPinnedState = (isPinned) => {
+        sidebar.classList.toggle('pinned', isPinned);
+        pinBtn.title = isPinned ? 'Bỏ ghim (tự ẩn/hiện khi rê chuột)' : 'Ghim thanh điều hướng luôn mở rộng';
+        pinBtn.setAttribute('aria-pressed', isPinned ? 'true' : 'false');
+    };
+
+    applyPinnedState(localStorage.getItem(SIDEBAR_PIN_KEY) === '1');
+
+    pinBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const nextPinned = !sidebar.classList.contains('pinned');
+        applyPinnedState(nextPinned);
+        localStorage.setItem(SIDEBAR_PIN_KEY, nextPinned ? '1' : '0');
+    });
+}
+
+/**
+ * MỞ/ĐÓNG SIDEBAR TRÊN DI ĐỘNG (drawer tạm thời, không ghi nhớ, khác trạng thái Ghim).
+ */
+function initMobileSidebarToggle() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const toggleBtn = document.getElementById('mobile-sidebar-toggle');
+    if (!sidebar || !overlay || !toggleBtn) return;
+
+    const openMobileSidebar = () => {
+        sidebar.classList.add('mobile-open');
+        overlay.classList.add('is-visible');
+    };
+    const closeMobileSidebar = () => {
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('is-visible');
+    };
+
+    toggleBtn.addEventListener('click', () => {
+        if (sidebar.classList.contains('mobile-open')) closeMobileSidebar();
+        else openMobileSidebar();
+    });
+    overlay.addEventListener('click', closeMobileSidebar);
+
+    // Chọn xong 1 mục menu trên di động thì tự đóng lại cho đỡ vướng.
+    document.querySelectorAll('.sidebar .menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+            if (window.innerWidth < MOBILE_BREAKPOINT) closeMobileSidebar();
+        });
+    });
+
+    // Chuyển từ mobile sang desktop thì tự đóng trạng thái drawer tạm thời.
+    window.addEventListener('resize', () => {
+        if (window.innerWidth >= MOBILE_BREAKPOINT) closeMobileSidebar();
     });
 }
 
