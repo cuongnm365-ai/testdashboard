@@ -1,21 +1,15 @@
 /**
  * app.js - Khởi tạo ứng dụng: Theme, Router (chuyển trang), Login Gate, Sidebar
- *
- * CẬP NHẬT MỚI NHẤT:
- * - Bổ sung chức năng GHIM (pin) thanh điều hướng bên trái: người dùng bấm nút
- *   ghim ở góc trên sidebar để chọn "luôn mở rộng" thay vì mặc định tự thu gọn
- *   và chỉ mở khi rê chuột vào. Trạng thái ghim được lưu ở localStorage
- *   ('gportal_sidebar_pinned') nên vẫn giữ nguyên lựa chọn ở lần truy cập sau.
- * - Bổ sung nút mở menu (hamburger) + lớp phủ (overlay) cho di động: trước đây
- *   sidebar chỉ mở khi hover, mà điện thoại/máy tính bảng không có sự kiện
- *   hover nên sidebar không thể mở được trên các thiết bị cảm ứng. Giờ có nút
- *   hamburger ở góc trái Header (chỉ hiển thị khi màn hình hẹp) để mở/đóng
- *   sidebar dạng drawer tạm thời (không ghi nhớ, khác với trạng thái Ghim).
- * - Bổ sung view "email" (module Soạn Email) vào VIEW_META.
  */
 
 const AppState = { currentView: 'dashboard', theme: 'dark', isLoggedIn: false, userProfile: null };
 window.AppState = AppState;
+
+// SỬA LỖI TRỌNG TÂM: Đăng ký biến vào window, chống lỗi Identifier has already been declared
+if (typeof window.SESSION_MARKER_KEY === 'undefined') {
+    window.SESSION_MARKER_KEY = 'gportal_session_marker';
+}
+window.GPORTAL_SESSION_MARKER_KEY = window.SESSION_MARKER_KEY;
 
 const VIEW_META = {
     dashboard: { title: 'Dashboard', subtitle: 'Tổng quan năng suất & KPI cá nhân' },
@@ -41,19 +35,18 @@ document.addEventListener('DOMContentLoaded', () => {
         window.switchView(initialView);
     }
 
-    // Cờ AppState.isLoggedIn được set NGAY (đồng bộ) nếu còn token hợp lệ trong localStorage,
-    // không đợi googleSync.js chạy xong (chi tiết xem googleSync.js).
+    // ---- QUYẾT ĐỊNH TRẠNG THÁI HIỂN THỊ BAN ĐẦU ----
     const savedToken = localStorage.getItem('gapi_token');
     const tokenExpiry = parseInt(localStorage.getItem('gapi_token_expiry') || '0', 10);
+    const hasSessionMarker = localStorage.getItem(window.GPORTAL_SESSION_MARKER_KEY) === '1';
+
     if (savedToken && Date.now() < tokenExpiry) {
         AppState.isLoggedIn = true;
         window.showApp();
+    } else if (hasSessionMarker) {
+        window.showLogin('Đang khôi phục phiên đăng nhập trước đó...');
     } else {
-        if (savedToken) {
-            localStorage.removeItem('gapi_token');
-            localStorage.removeItem('gapi_token_expiry');
-        }
-        window.showLogin(savedToken ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.' : '');
+        window.showLogin('');
     }
 });
 
@@ -85,10 +78,6 @@ function initThemeToggle() {
     });
 }
 
-/**
- * GHIM (PIN) SIDEBAR — người dùng tự do chọn luôn mở rộng hay tự ẩn/hiện khi rê chuột.
- * Trạng thái được ghi nhớ qua localStorage, áp dụng lại ngay khi tải trang.
- */
 function initSidebarPin() {
     const sidebar = document.getElementById('sidebar');
     const pinBtn = document.getElementById('sidebar-pin-btn');
@@ -111,9 +100,6 @@ function initSidebarPin() {
     });
 }
 
-/**
- * MỞ/ĐÓNG SIDEBAR TRÊN DI ĐỘNG (drawer tạm thời, không ghi nhớ, khác trạng thái Ghim).
- */
 function initMobileSidebarToggle() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
@@ -135,14 +121,12 @@ function initMobileSidebarToggle() {
     });
     overlay.addEventListener('click', closeMobileSidebar);
 
-    // Chọn xong 1 mục menu trên di động thì tự đóng lại cho đỡ vướng.
     document.querySelectorAll('.sidebar .menu-item').forEach(item => {
         item.addEventListener('click', () => {
             if (window.innerWidth < MOBILE_BREAKPOINT) closeMobileSidebar();
         });
     });
 
-    // Chuyển từ mobile sang desktop thì tự đóng trạng thái drawer tạm thời.
     window.addEventListener('resize', () => {
         if (window.innerWidth >= MOBILE_BREAKPOINT) closeMobileSidebar();
     });
@@ -224,5 +208,5 @@ window.showLogin = function (message) {
     if (shell) shell.style.display = 'none';
     if (login) login.style.display = 'flex';
     const status = document.getElementById('login-status');
-    if (status && message) status.innerText = message;
+    if (status && message !== undefined) status.innerText = message;
 };

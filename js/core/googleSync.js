@@ -1,32 +1,63 @@
 /**
  * googleSync.js - Google Auth + Drive + Calendar + Tasks
  *
- * BẢN GỘP EMAIL-TEMPLATE-TOOL VÀO G-PORTAL — THAY ĐỔI MỚI NHẤT:
+ * BẢN CẬP NHẬT MỚI NHẤT — TÁCH RIÊNG LỊCH TĂNG CƯỜNG (OT):
  * -------------------------------------------------------------------------
- * 1) Bổ sung 2 scope 'openid email profile' vào SCOPES. Trước đây G-Portal
- *    chỉ xin quyền Drive/Calendar/Tasks, không có cách nào biết được người
- *    đang đăng nhập tên gì / email gì (không hiển thị ở đâu trên UI cả).
- *    Module "Soạn Email" (gộp từ email-template-tool) trước đây dùng MỘT
- *    hệ thống đăng nhập Google RIÊNG (Google Identity Services / One-Tap,
- *    file JS/google-auth.js cũ) chỉ để lấy tên/email hiển thị và gửi kèm
- *    khi ghi nhận thống kê sử dụng mẫu email — hệ thống đó đã bị loại bỏ
- *    hoàn toàn để chỉ còn DUY NHẤT một lượt đăng nhập Google cho toàn bộ
- *    ứng dụng (đúng yêu cầu gộp chung).
- * 2) Thêm fetchUserProfile(accessToken): gọi endpoint chuẩn của Google
- *    (openid userinfo) để lấy {name, email, picture}, lưu vào
- *    AppState.userProfile và localStorage 'gportal_user_profile' (cache để
- *    hiển thị ngay cả trước khi mạng phản hồi ở lần load lại trang).
- *    Đồng thời cập nhật badge người dùng ở góc phải Header
- *    (#user-profile-box, có sẵn trong index.html nhưng trước đây bỏ trống)
- *    và bắn sự kiện 'gportal_profile_ready' để các module khác (VD: module
- *    Soạn Email) có thể lắng nghe và tự làm mới tên Agent nếu cần.
- * 3) engine.js (module Soạn Email) giờ đọc AppState.userProfile thay vì
- *    authManager.user như bản cũ.
+ * Trước đây sự kiện Tăng cường (OT) được đẩy chung vào CÙNG một lịch với
+ * Ca làm việc chính (workCalendarId), chỉ phân biệt bằng
+ * extendedProperties.private.gportalType = 'work-ot'. Nay theo yêu cầu,
+ * toàn bộ sự kiện OT sẽ được đẩy sang MỘT LỊCH GOOGLE RIÊNG BIỆT để tách
+ * bạch trực quan "Lịch làm" và "Lịch OT" ngay trên giao diện Google
+ * Calendar (mỗi lịch 1 màu, có thể ẩn/hiện độc lập).
+ *
+ * ID Lịch OT mặc định (có thể ghi đè qua portalSettings.googleCalendar.otCalendarId,
+ * tương tự cách workCalendarId / meetingCalendarId đang hoạt động):
+ *   a4fd9cc3792252ef744f35ecd2265d1647e9f9d6f9984d15624cf68ea82850ab@group.calendar.google.com
+ *
+ * Toàn bộ luồng liên quan đến OT đã được cập nhật để dùng đúng Lịch OT này:
+ *   - syncOtCalendarEvent(): tạo/cập nhật sự kiện OT trên Lịch OT.
+ *   - deleteOtCalendarEvent(): xoá sự kiện OT khỏi Lịch OT.
+ *   - reconcileMonthWithGoogle(): đọc lại sự kiện OT từ Lịch OT (thay vì đọc
+ *     từ Lịch làm việc chính như trước) khi "Kiểm tra đồng bộ".
+ * Lịch làm việc chính (Ca chính, gportalType: 'work') và Lịch họp
+ * (gportalType: 'meeting') không thay đổi, vẫn hoạt động như cũ.
+ * -------------------------------------------------------------------------
+ *
+ * BẢN VÁ LỖI "GIỮ ĐĂNG NHẬP" (trước đó):
+ * -------------------------------------------------------------------------
+ * BỐI CẢNH: Google Identity Services (token client) dùng cho ứng dụng thuần
+ * client-side (không backend) KHÔNG cấp refresh token — chỉ cấp access token
+ * sống ngắn (~1 giờ). Cách duy nhất để "giữ đăng nhập" lâu dài mà không bắt
+ * người dùng nhập lại mật khẩu là liên tục MƯỢN LẠI phiên SSO (cookie đăng
+ * nhập Google) của chính trình duyệt đó bằng cách gọi
+ * tokenClient.requestAccessToken({ prompt: '' }) — lệnh này chạy NGẦM, không
+ * hiện popup, miễn là người dùng vẫn còn đăng nhập Google & đã từng đồng ý
+ * cấp quyền cho ứng dụng trên trình duyệt/máy đó. Đây cũng chính là lý do
+ * hành vi "cùng máy thì giữ đăng nhập, đổi máy thì phải đăng nhập lại" là
+ * điều tự nhiên (vì máy khác không có cookie phiên Google đó).
+ *
+ * LỖI ĐÃ SỬA: trước đây cơ chế khôi phục ngầm này gần như KHÔNG BAO GIỜ được
+ * kích hoạt, vì app.js xoá token hết hạn khỏi localStorage NGAY khi trang vừa
+ * tải (trước khi thư viện Google kịp sẵn sàng) — khiến điều kiện kiểm tra
+ * "có token cũ để thử khôi phục" ở đây luôn sai. Nay app.js không tự xoá
+ * token nữa (xem app.js), và toàn bộ logic khôi phục ngầm được gom lại thành
+ * hàm attemptSilentSessionRestore() bên dưới, dựa vào "dấu vết phiên đăng
+ * nhập" (SESSION_MARKER_KEY) — một cờ KHÔNG có hạn sử dụng, chỉ mất khi
+ * người dùng chủ động Đăng xuất — để quyết định có nên thử mượn lại phiên
+ * SSO hay không, bất kể access token cũ còn tồn tại trong localStorage hay
+ * không.
+ *
+ * BỔ SUNG: lắng nghe sự kiện visibilitychange — khi người dùng quay lại tab
+ * sau một thời gian tab bị ẩn/máy ngủ (lúc đó setTimeout hẹn giờ làm mới token
+ * có thể không chạy đúng giờ do trình duyệt tạm dừng tab nền), hệ thống sẽ
+ * kiểm tra lại hạn token và làm mới ngay nếu cần, tránh trường hợp quay lại
+ * tab mà thấy đã "rớt" đăng nhập.
  *
  * (Giữ nguyên toàn bộ các fix trước đó: polling gapi/gis, gapi.client.init
  * lỗi âm thầm, isLoggedIn set đồng bộ, logout bọc try/catch/finally, cảnh
- * báo file://, cấu hình Calendar ID từ Cài đặt, làm mới token ngầm trước
- * khi hết hạn, xác định sự kiện G-Portal qua extendedProperties.private...)
+ * báo file://, cấu hình Calendar ID từ Cài đặt, xác định sự kiện G-Portal qua
+ * extendedProperties.private, lấy hồ sơ Google dùng chung toàn app, các fix
+ * đồng bộ Lịch/Task/OT/đồng bộ ngược đã có từ trước...)
  * -------------------------------------------------------------------------
  */
 
@@ -46,12 +77,18 @@ const DISCOVERY_DOCS = [
     'https://tasks.googleapis.com/$discovery/rest?version=v1'
 ];
 
-// MỚI: thêm 'openid email profile' để lấy được tên/email người dùng (dùng cho
-// badge Header + module Soạn Email), không cần hệ thống đăng nhập Google riêng nữa.
+// Scope 'openid email profile' để lấy tên/email người dùng (badge Header + module Soạn Email).
 const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks';
 
 const TOKEN_REFRESH_MARGIN_SEC = 300; // 5 phút
 const TOKEN_REFRESH_MIN_DELAY_MS = 30000; // 30 giây
+
+// "Dấu vết phiên đăng nhập" — dùng chung key với app.js (xem app.js). Sống độc
+// lập với access token, chỉ bị xoá khi người dùng chủ động Đăng xuất. Có cờ
+// này thì mỗi lần mở lại trang sẽ luôn thử khôi phục ngầm (silent SSO), bất kể
+// access token cũ trong localStorage còn hay đã bị dọn.
+// Thay const bằng window để dùng chung với app.js, không bao giờ bị lỗi trùng lặp
+window.GPORTAL_SESSION_MARKER_KEY = window.GPORTAL_SESSION_MARKER_KEY || 'gportal_session_marker';
 
 let tokenClient;
 let gapiInited = false;
@@ -59,6 +96,12 @@ let gisInited = false;
 let gapiLoadRequested = false;
 let tokenRefreshTimerId = null;
 let silentRestoreAttempted = false;
+// true trong lúc đang chờ kết quả của một lần thử khôi phục NGẦM (prompt:'').
+// Dùng để error_callback phân biệt được: thất bại này đến từ việc mượn lại
+// phiên SSO tự động (nên chỉ cần âm thầm quay về màn hình đăng nhập, xoá dấu
+// vết phiên) hay đến từ việc người dùng chủ động bấm nút đăng nhập (nên cần
+// hiển thị thông báo lỗi chi tiết như trước).
+let pendingSilentRestore = false;
 const GSYNC_START_TIME = Date.now();
 
 function setLoginStatus(text, isError) {
@@ -72,6 +115,18 @@ function setLoginStatus(text, isError) {
 
     if (isError) console.error('[G-Portal Auth]', text);
     else console.log('[G-Portal Auth]', text);
+}
+
+function markSessionActive() {
+    try { localStorage.setItem(SESSION_MARKER_KEY, '1'); } catch (e) {}
+}
+
+function clearSessionMarker() {
+    try { localStorage.removeItem(SESSION_MARKER_KEY); } catch (e) {}
+}
+
+function hasSessionMarker() {
+    try { return localStorage.getItem(SESSION_MARKER_KEY) === '1'; } catch (e) { return false; }
 }
 
 // ============================================================
@@ -187,7 +242,7 @@ async function fetchUserProfile(accessToken) {
 })();
 
 // ============================================================
-// 2. LÀM MỚI TOKEN NGẦM
+// 2. LÀM MỚI TOKEN NGẦM (hẹn giờ trước khi hết hạn + làm mới khi quay lại tab)
 // ============================================================
 function scheduleTokenRefresh(expiresInSeconds) {
     if (tokenRefreshTimerId) {
@@ -200,6 +255,7 @@ function scheduleTokenRefresh(expiresInSeconds) {
     tokenRefreshTimerId = setTimeout(() => {
         if (!tokenClient) return;
         console.log('[G-Portal Auth] Đang tự động làm mới phiên đăng nhập Google (ngầm)...');
+        pendingSilentRestore = true;
         tokenClient.requestAccessToken({ prompt: '' });
     }, delayMs);
 }
@@ -211,11 +267,32 @@ function clearScheduledTokenRefresh() {
     }
 }
 
+// MỚI — khi tab bị ẩn/máy ngủ trong lúc setTimeout đang chờ, trình duyệt có
+// thể "đóng băng" timer khiến nó không chạy đúng giờ đã hẹn. Khi người dùng
+// quay lại tab, kiểm tra lại hạn token ngay lập tức và làm mới nếu cần, để
+// tránh cảm giác "bị rớt đăng nhập" dù thực ra phiên SSO vẫn còn hợp lệ.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!tokenClient || !gapiInited || !gisInited) return;
+    if (!AppState.isLoggedIn && !hasSessionMarker()) return;
+
+    const expiry = parseInt(localStorage.getItem('gapi_token_expiry') || '0', 10);
+    const isExpiredOrNear = Date.now() >= (expiry - TOKEN_REFRESH_MARGIN_SEC * 1000);
+    if (isExpiredOrNear) {
+        console.log('[G-Portal Auth] Quay lại tab, token sắp/đã hết hạn -> làm mới ngầm...');
+        pendingSilentRestore = true;
+        tokenClient.requestAccessToken({ prompt: '' });
+    }
+});
+
 function initGoogleAuth() {
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
         callback: (tokenResponse) => {
+            const wasSilentAttempt = pendingSilentRestore;
+            pendingSilentRestore = false;
+
             if (tokenResponse && tokenResponse.access_token) {
                 const expiresIn = tokenResponse.expires_in || 3600;
                 const expiryTime = Date.now() + (expiresIn * 1000);
@@ -223,19 +300,47 @@ function initGoogleAuth() {
                 localStorage.setItem('gapi_token_expiry', String(expiryTime));
                 if (gapi.client) gapi.client.setToken(tokenResponse);
 
+                // Đăng nhập/khôi phục thành công (dù ngầm hay thủ công) -> luôn
+                // đánh dấu lại "dấu vết phiên" để lần mở trang sau còn biết mà
+                // thử khôi phục ngầm tiếp.
+                markSessionActive();
+
                 AppState.isLoggedIn = true;
                 if (typeof window.showApp === 'function') window.showApp();
 
                 scheduleTokenRefresh(expiresIn);
                 fetchUserProfile(tokenResponse.access_token);
                 loadAllDataFromDrive();
+            } else if (wasSilentAttempt) {
+                // Khôi phục ngầm không trả về token nhưng cũng không có lỗi rõ
+                // ràng (hiếm gặp) -> coi như phiên không còn hợp lệ, quay về màn
+                // hình đăng nhập bình thường, không cần thông báo lỗi to tát.
+                silentSessionRestoreFailed('');
             } else {
                 setLoginStatus('Đăng nhập thất bại hoặc bị huỷ. Vui lòng thử lại.', true);
             }
         },
         error_callback: (err) => {
-            console.error('[G-Portal Auth] OAuth error_callback:', err);
+            const wasSilentAttempt = pendingSilentRestore;
+            pendingSilentRestore = false;
+
             const type = err && err.type ? err.type : 'unknown';
+            console.error('[G-Portal Auth] OAuth error_callback:', err, wasSilentAttempt ? '(silent restore)' : '(interactive)');
+
+            if (wasSilentAttempt) {
+                // Thất bại trong lúc thử KHÔI PHỤC NGẦM (không phải người dùng chủ
+                // động bấm nút) -> nghĩa là phiên SSO của Google trên trình duyệt
+                // này không còn dùng được nữa (đã đăng xuất Google, thu hồi quyền,
+                // hoặc trình duyệt chặn cookie bên thứ 3...). Âm thầm quay về màn
+                // hình đăng nhập bình thường, xoá dấu vết phiên để không lặp lại
+                // việc thử khôi phục vô ích ở những lần mở trang sau.
+                silentSessionRestoreFailed(
+                    type === 'popup_failed_to_open' || type === 'popup_closed'
+                        ? ''
+                        : 'Phiên đăng nhập trước đó đã hết hiệu lực, vui lòng đăng nhập lại.'
+                );
+                return;
+            }
 
             if (type === 'popup_failed_to_open' || type === 'popup_closed') {
                 setLoginStatus('');
@@ -248,14 +353,17 @@ function initGoogleAuth() {
         }
     });
 
+    // ---- Quyết định bước tiếp theo dựa trên access token hiện có ----
     const savedTokenStr = localStorage.getItem('gapi_token');
     const savedExpiry = parseInt(localStorage.getItem('gapi_token_expiry') || '0', 10);
 
     if (savedTokenStr && Date.now() < savedExpiry) {
+        // Token còn hạn -> dùng luôn, không cần khôi phục gì cả.
         try {
             const savedToken = JSON.parse(savedTokenStr);
             if (gapi.client) {
                 gapi.client.setToken(savedToken);
+                markSessionActive();
                 AppState.isLoggedIn = true;
                 if (typeof window.showApp === 'function') window.showApp();
 
@@ -270,19 +378,55 @@ function initGoogleAuth() {
             localStorage.removeItem('gapi_token');
             localStorage.removeItem('gapi_token_expiry');
             AppState.isLoggedIn = false;
-            if (typeof window.showLogin === 'function') window.showLogin();
+            attemptSilentSessionRestore();
         }
-    } else if (savedTokenStr) {
-        localStorage.removeItem('gapi_token');
-        localStorage.removeItem('gapi_token_expiry');
+    } else {
+        // Token hết hạn hoặc không tồn tại -> dọn dẹp token cũ (nếu có), rồi
+        // LUÔN thử khôi phục ngầm nếu trình duyệt này từng đăng nhập trước đó.
+        if (savedTokenStr) {
+            localStorage.removeItem('gapi_token');
+            localStorage.removeItem('gapi_token_expiry');
+        }
         AppState.isLoggedIn = false;
-        if (typeof window.showLogin === 'function') window.showLogin('Đang khôi phục phiên đăng nhập trước đó...');
-
-        if (!silentRestoreAttempted) {
-            silentRestoreAttempted = true;
-            tokenClient.requestAccessToken({ prompt: '' });
-        }
+        attemptSilentSessionRestore();
     }
+}
+
+/**
+ * Thử mượn lại phiên đăng nhập Google (silent SSO, không popup) nếu trình
+ * duyệt này từng đăng nhập thành công trước đó. Chỉ thử MỘT LẦN mỗi lần tải
+ * trang (silentRestoreAttempted) để tránh lặp vô hạn nếu Google liên tục từ
+ * chối. Nếu không có dấu vết phiên nào -> hiển thị màn hình đăng nhập bình
+ * thường, không làm gì thêm (đúng như một người dùng chưa từng đăng nhập).
+ */
+function attemptSilentSessionRestore() {
+    if (!hasSessionMarker()) {
+        if (typeof window.showLogin === 'function') window.showLogin('');
+        return;
+    }
+
+    if (typeof window.showLogin === 'function') {
+        window.showLogin('Đang khôi phục phiên đăng nhập trước đó...');
+    }
+
+    if (!silentRestoreAttempted) {
+        silentRestoreAttempted = true;
+        pendingSilentRestore = true;
+        tokenClient.requestAccessToken({ prompt: '' });
+    }
+}
+
+/**
+ * Khôi phục ngầm thất bại thật sự (không phải do popup bị chặn tạm thời) ->
+ * coi như phiên SSO không còn dùng được, dọn sạch dấu vết phiên + token, và
+ * đưa người dùng về màn hình đăng nhập bình thường kèm thông báo phù hợp.
+ */
+function silentSessionRestoreFailed(message) {
+    clearSessionMarker();
+    localStorage.removeItem('gapi_token');
+    localStorage.removeItem('gapi_token_expiry');
+    AppState.isLoggedIn = false;
+    if (typeof window.showLogin === 'function') window.showLogin(message || '');
 }
 
 window.retryGoogleLibraries = function () {
@@ -299,6 +443,7 @@ function loadAllDataFromDrive() {
 
 window.handleAuthClick = function () {
     if (tokenClient) {
+        pendingSilentRestore = false; // đây là thao tác đăng nhập THỦ CÔNG của người dùng
         tokenClient.requestAccessToken({ prompt: '' });
     } else {
         let reason = 'chưa rõ nguyên nhân — hãy xem dòng chữ đỏ phía dưới nút này hoặc mở Console (F12) để xem lỗi.';
@@ -328,6 +473,13 @@ window.handleSignoutClick = function () {
         localStorage.removeItem('gapi_token');
         localStorage.removeItem('gapi_token_expiry');
         localStorage.removeItem('gportal_user_profile');
+        // Đăng xuất là hành động CHỦ ĐỘNG duy nhất xoá "dấu vết phiên" — từ giờ
+        // trở đi, mở lại trang sẽ không còn tự động thử khôi phục ngầm nữa,
+        // đúng yêu cầu "nếu không đăng xuất thì giữ nguyên, đã đăng xuất thì
+        // phải đăng nhập lại".
+        clearSessionMarker();
+        silentRestoreAttempted = false;
+        pendingSilentRestore = false;
         AppState.isLoggedIn = false;
         AppState.userProfile = null;
         const box = document.getElementById('user-profile-box');
@@ -342,32 +494,75 @@ window.handleSignoutClick = function () {
 
 const DEFAULT_WORK_CALENDAR_ID = 'primary';
 const DEFAULT_MEETING_CALENDAR_ID = '0770c7fff204ae1af3aa25c9a88b00c17bb59c5f6f0b03dd5aa6b51fd3b567d5@group.calendar.google.com';
+// MỚI — Lịch riêng dành cho sự kiện Tăng cường (OT), tách biệt hoàn toàn khỏi
+// Lịch làm việc chính để dễ theo dõi/ẩn-hiện riêng trên Google Calendar.
+const DEFAULT_OT_CALENDAR_ID = 'a4fd9cc3792252ef744f35ecd2265d1647e9f9d6f9984d15624cf68ea82850ab@group.calendar.google.com';
 
 function getConfiguredCalendarId(kind) {
     const cfg = (window.portalSettings && window.portalSettings.googleCalendar) || {};
     if (kind === 'meeting') {
         return (cfg.meetingCalendarId && cfg.meetingCalendarId.trim()) ? cfg.meetingCalendarId.trim() : DEFAULT_MEETING_CALENDAR_ID;
     }
+    if (kind === 'ot') {
+        return (cfg.otCalendarId && cfg.otCalendarId.trim()) ? cfg.otCalendarId.trim() : DEFAULT_OT_CALENDAR_ID;
+    }
     return (cfg.workCalendarId && cfg.workCalendarId.trim()) ? cfg.workCalendarId.trim() : DEFAULT_WORK_CALENDAR_ID;
+}
+
+// ---------- Tiện ích ngày tháng dùng chung cho phần đồng bộ ----------
+function addDaysToDateKey(dateKey, days) {
+    const parts = dateKey.split('-').map(Number);
+    const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+    dt.setDate(dt.getDate() + days);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+window.addDaysToDateKey = addDaysToDateKey;
+
+function getMonthRangeISO(dateObj) {
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth();
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const pad = n => String(n).padStart(2, '0');
+    const firstKey = `${first.getFullYear()}-${pad(first.getMonth() + 1)}-${pad(first.getDate())}`;
+    const lastKey = `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`;
+    return {
+        firstKey,
+        lastKey,
+        timeMin: `${firstKey}T00:00:00+07:00`,
+        timeMax: `${lastKey}T23:59:59+07:00`
+    };
+}
+
+// ---------- Tìm sự kiện Lịch theo extendedProperties.private trong một khoảng thời gian ----------
+async function findEventsByExtendedPropsInRange(timeMin, timeMax, calendarId, propFilters) {
+    const propArray = Object.entries(propFilters).map(([k, v]) => `${k}=${v}`);
+    let items = [];
+    let pageToken;
+    try {
+        do {
+            const response = await gapi.client.calendar.events.list({
+                calendarId: calendarId,
+                timeMin: timeMin,
+                timeMax: timeMax,
+                singleEvents: true,
+                privateExtendedProperty: propArray,
+                maxResults: 250,
+                pageToken: pageToken
+            });
+            items = items.concat(response.result.items || []);
+            pageToken = response.result.nextPageToken;
+        } while (pageToken);
+    } catch (err) {
+        console.error('Lỗi khi tìm sự kiện Lịch (theo khoảng thời gian):', err);
+    }
+    return items;
 }
 
 async function findEventsByExtendedProps(dateStr, calendarId, propFilters) {
     const minTime = `${dateStr}T00:00:00+07:00`;
     const maxTime = `${dateStr}T23:59:59+07:00`;
-    const propArray = Object.entries(propFilters).map(([k, v]) => `${k}=${v}`);
-    try {
-        const response = await gapi.client.calendar.events.list({
-            calendarId: calendarId,
-            timeMin: minTime,
-            timeMax: maxTime,
-            singleEvents: true,
-            privateExtendedProperty: propArray
-        });
-        return response.result.items || [];
-    } catch (err) {
-        console.error('Lỗi khi tìm sự kiện Lịch:', err);
-        return [];
-    }
+    return findEventsByExtendedPropsInRange(minTime, maxTime, calendarId, propFilters);
 }
 
 async function deleteCalendarEventsByProps(dateStr, calendarId, propFilters) {
@@ -400,6 +595,10 @@ function buildShiftEventTitle(dayData) {
 }
 window.buildShiftEventTitle = buildShiftEventTitle;
 
+// FIX #2 — CA ĐÊM: nếu giờ kết thúc <= giờ bắt đầu (VD 21:30 -> 07:30) thì ca
+// làm việc kết thúc vào NGÀY HÔM SAU. Trước đây cả start lẫn end đều gán
+// chung dateStr nên tạo ra sự kiện có end < start, ca đêm không lên lịch
+// đúng. Giờ tự động cộng thêm 1 ngày cho phần NGÀY của thời điểm kết thúc.
 window.syncCalendarEvent = async function (dateStr, dayData, shiftTime, description) {
     if (!AppState.isLoggedIn || !gapi.client) return;
 
@@ -414,8 +613,13 @@ window.syncCalendarEvent = async function (dateStr, dayData, shiftTime, descript
         endTimeStr = parts[1].trim() + ":00";
     }
 
+    let endDateStr = dateStr;
+    if (endTimeStr <= startTimeStr) {
+        endDateStr = addDaysToDateKey(dateStr, 1);
+    }
+
     const startDateTime = `${dateStr}T${startTimeStr}+07:00`;
-    const endDateTime = `${dateStr}T${endTimeStr}+07:00`;
+    const endDateTime = `${endDateStr}T${endTimeStr}+07:00`;
 
     const event = {
         summary: buildShiftEventTitle(dayData),
@@ -441,6 +645,62 @@ window.deleteWorkCalendarEvent = async function (dateStr) {
     await deleteCalendarEventsByProps(dateStr, getConfiguredCalendarId('work'), { gportalType: 'work' });
 };
 
+// ---------- TĂNG CƯỜNG (OT) LÀ SỰ KIỆN TRÊN LỊCH OT RIÊNG BIỆT ----------
+function buildOtEventTitle(dayData) {
+    return `${dayData.ot} - Tăng cường (OT)`;
+}
+window.buildOtEventTitle = buildOtEventTitle;
+
+window.syncOtCalendarEvent = async function (dateStr, dayData, otShiftTime, description) {
+    if (!AppState.isLoggedIn || !gapi.client) return;
+    if (!otShiftTime) return;
+
+    // MỚI: sự kiện OT giờ được đẩy vào Lịch OT riêng (getConfiguredCalendarId('ot')),
+    // KHÔNG còn dùng chung Lịch làm việc chính như trước.
+    const calendarId = getConfiguredCalendarId('ot');
+    await deleteCalendarEventsByProps(dateStr, calendarId, { gportalType: 'work-ot' });
+
+    let startTimeStr = "08:00:00";
+    let endTimeStr = "17:00:00";
+    if (otShiftTime.includes("-")) {
+        const parts = otShiftTime.split("-");
+        startTimeStr = parts[0].trim() + ":00";
+        endTimeStr = parts[1].trim() + ":00";
+    }
+
+    let endDateStr = dateStr;
+    if (endTimeStr <= startTimeStr) {
+        endDateStr = addDaysToDateKey(dateStr, 1);
+    }
+
+    const startDateTime = `${dateStr}T${startTimeStr}+07:00`;
+    const endDateTime = `${endDateStr}T${endTimeStr}+07:00`;
+
+    const event = {
+        summary: buildOtEventTitle(dayData),
+        description: description,
+        start: { dateTime: startDateTime, timeZone: 'Asia/Ho_Chi_Minh' },
+        end: { dateTime: endDateTime, timeZone: 'Asia/Ho_Chi_Minh' },
+        extendedProperties: { private: { gportalType: 'work-ot' } }
+    };
+
+    try {
+        await gapi.client.calendar.events.insert({
+            calendarId: calendarId,
+            resource: event
+        });
+        console.log(`Đã đồng bộ sự kiện Tăng cường (OT) ngày ${dateStr} thành công vào Lịch OT riêng.`);
+    } catch (err) {
+        console.error("Lỗi đồng bộ sự kiện OT: ", err);
+    }
+};
+
+window.deleteOtCalendarEvent = async function (dateStr) {
+    if (!AppState.isLoggedIn || !gapi.client) return;
+    // MỚI: xoá đúng trên Lịch OT riêng.
+    await deleteCalendarEventsByProps(dateStr, getConfiguredCalendarId('ot'), { gportalType: 'work-ot' });
+};
+
 window.deleteMeetingCalendarEvent = async function (meeting) {
     if (!AppState.isLoggedIn || !gapi.client || !meeting) return;
     await deleteCalendarEventsByProps(meeting.date, getConfiguredCalendarId('meeting'), {
@@ -457,8 +717,15 @@ window.syncMeetingCalendarEvent = async function (meeting) {
         gportalMeetingId: meeting.id
     });
 
-    const startDateTime = `${meeting.date}T${meeting.start || '09:00'}:00+07:00`;
-    const endDateTime = `${meeting.date}T${meeting.end || '10:00'}:00+07:00`;
+    const startStr = (meeting.start || '09:00') + ':00';
+    const endStr = (meeting.end || '10:00') + ':00';
+    let endDateStr = meeting.date;
+    if (endStr <= startStr) {
+        endDateStr = addDaysToDateKey(meeting.date, 1);
+    }
+
+    const startDateTime = `${meeting.date}T${startStr}+07:00`;
+    const endDateTime = `${endDateStr}T${endStr}+07:00`;
     const isOnline = meeting.mode === 'online';
     const event = {
         summary: meeting.title,
@@ -477,14 +744,30 @@ window.syncMeetingCalendarEvent = async function (meeting) {
     }
 };
 
+// ---------- TASK PCCV ----------
+async function findGoogleTasksInRange(dueMin, dueMax) {
+    let items = [];
+    let pageToken;
+    do {
+        const listRes = await gapi.client.tasks.tasks.list({
+            tasklist: '@default',
+            showCompleted: false,
+            showHidden: false,
+            dueMin: dueMin,
+            dueMax: dueMax,
+            maxResults: 100,
+            pageToken: pageToken
+        });
+        items = items.concat(listRes.result.items || []);
+        pageToken = listRes.result.nextPageToken;
+    } while (pageToken);
+    return items;
+}
+
 async function findGoogleTaskByDate(dateKey) {
-    const listRes = await gapi.client.tasks.tasks.list({
-        tasklist: '@default',
-        showCompleted: false,
-        showHidden: false,
-        maxResults: 100
-    });
-    const items = listRes.result.items || [];
+    const dueMin = `${dateKey}T00:00:00.000Z`;
+    const dueMax = `${dateKey}T23:59:59.999Z`;
+    const items = await findGoogleTasksInRange(dueMin, dueMax);
     return items.find(t => t.due && t.due.substring(0, 10) === dateKey);
 }
 
@@ -525,3 +808,206 @@ window.deleteGoogleTask = async function (dateKey) {
         console.error('Lỗi xoá Google Task:', err);
     }
 };
+
+// ========================================================
+// ĐỒNG BỘ NGƯỢC: đọc lại Google Calendar/Tasks để khớp lại Portal
+// ========================================================
+function parseShiftEventTitle(title) {
+    const fallback = { shiftPart: (title || '').trim() || 'OFF', type: 'chinhchu', trade: '', help: '' };
+    if (!title) return fallback;
+    const idx = title.indexOf(' - ');
+    if (idx === -1) return fallback;
+    const shiftPart = title.substring(0, idx).trim() || 'OFF';
+    const rest = title.substring(idx + 3).trim();
+    if (rest.indexOf('Đổi ca') === 0) {
+        return { shiftPart, type: 'doica', trade: rest.replace('Đổi ca', '').trim(), help: '' };
+    }
+    if (rest.indexOf('Trực hộ') === 0) {
+        return { shiftPart, type: 'trucho', trade: '', help: rest.replace('Trực hộ', '').trim() };
+    }
+    return { shiftPart, type: 'chinhchu', trade: '', help: '' };
+}
+
+function parseOtEventTitle(title) {
+    if (!title) return '';
+    const idx = title.indexOf(' - ');
+    return (idx === -1 ? title : title.substring(0, idx)).trim();
+}
+
+function parseShiftEventDescription(desc) {
+    const result = { ot: '', task: '' };
+    if (!desc) return result;
+    desc.split('\n').forEach(line => {
+        const otMatch = line.match(/^OT:\s*(.*)$/);
+        if (otMatch) result.ot = otMatch[1].trim();
+        const pccvMatch = line.match(/^PCCV:\s*(.*)$/);
+        if (pccvMatch) result.task = pccvMatch[1].trim();
+    });
+    return result;
+}
+
+function parseMeetingDescription(desc) {
+    const result = { content: '', location: '', mode: 'offline' };
+    if (!desc) return result;
+    const lines = desc.split('\n');
+    const last = lines[lines.length - 1] || '';
+    if (last.indexOf('Link họp:') === 0) {
+        result.mode = 'online';
+        result.location = last.replace('Link họp:', '').trim();
+        lines.pop();
+    } else if (last.indexOf('Địa điểm:') === 0) {
+        result.mode = 'offline';
+        result.location = last.replace('Địa điểm:', '').trim();
+        lines.pop();
+    }
+    result.content = lines.join('\n').trim();
+    return result;
+}
+
+function eventDateKey(ev) {
+    const raw = (ev.start && (ev.start.dateTime || ev.start.date)) || '';
+    return raw.substring(0, 10);
+}
+
+window.reconcileMonthWithGoogle = async function (monthDate) {
+    if (!AppState.isLoggedIn || !gapi.client) {
+        return { changed: false, changedSchedule: false, changedMeeting: false };
+    }
+
+    const { firstKey, lastKey, timeMin, timeMax } = getMonthRangeISO(monthDate);
+    const workCalendarId = getConfiguredCalendarId('work');
+    const otCalendarId = getConfiguredCalendarId('ot');
+    const meetingCalendarId = getConfiguredCalendarId('meeting');
+
+    let changedSchedule = false;
+    let changedMeeting = false;
+
+    const workEvents = await findEventsByExtendedPropsInRange(timeMin, timeMax, workCalendarId, { gportalType: 'work' });
+    const googleScheduleMap = {};
+    workEvents.forEach(ev => {
+        const dateKey = eventDateKey(ev);
+        if (!dateKey) return;
+        const parsedTitle = parseShiftEventTitle(ev.summary);
+        googleScheduleMap[dateKey] = {
+            type: parsedTitle.type,
+            shift: parsedTitle.shiftPart || 'OFF',
+            ot: '',
+            task: '',
+            trade: parsedTitle.type === 'doica' ? parsedTitle.trade : '',
+            help: parsedTitle.type === 'trucho' ? parsedTitle.help : ''
+        };
+    });
+
+    // MỚI: đọc sự kiện OT từ Lịch OT riêng (otCalendarId) thay vì Lịch làm
+    // việc chính như trước, cho khớp với nơi syncOtCalendarEvent() đang ghi.
+    const otEvents = await findEventsByExtendedPropsInRange(timeMin, timeMax, otCalendarId, { gportalType: 'work-ot' });
+    otEvents.forEach(ev => {
+        const dateKey = eventDateKey(ev);
+        if (!dateKey) return;
+        const otCode = parseOtEventTitle(ev.summary);
+        if (!otCode) return;
+        if (googleScheduleMap[dateKey]) {
+            googleScheduleMap[dateKey].ot = otCode;
+        } else {
+            googleScheduleMap[dateKey] = { type: 'chinhchu', shift: 'OFF', ot: otCode, task: '', trade: '', help: '' };
+        }
+    });
+
+    const dueMin = `${firstKey}T00:00:00.000Z`;
+    const dueMax = `${lastKey}T23:59:59.999Z`;
+    const monthTasks = await findGoogleTasksInRange(dueMin, dueMax);
+    const googleTaskMap = {};
+    monthTasks.forEach(t => {
+        if (!t.due) return;
+        const dateKey = t.due.substring(0, 10);
+        googleTaskMap[dateKey] = t.title || '';
+    });
+
+    Object.keys(googleScheduleMap).forEach(dateKey => {
+        if (googleTaskMap[dateKey] !== undefined) {
+            googleScheduleMap[dateKey].task = googleTaskMap[dateKey];
+        }
+    });
+    Object.keys(googleTaskMap).forEach(dateKey => {
+        if (dateKey >= firstKey && dateKey <= lastKey && !googleScheduleMap[dateKey]) {
+            googleScheduleMap[dateKey] = { type: 'chinhchu', shift: 'OFF', ot: '', task: googleTaskMap[dateKey], trade: '', help: '' };
+        }
+    });
+
+    window.monthlyScheduleData = window.monthlyScheduleData || {};
+    const localKeysInMonth = Object.keys(window.monthlyScheduleData).filter(k => k >= firstKey && k <= lastKey);
+
+    Object.keys(googleScheduleMap).forEach(dateKey => {
+        const g = googleScheduleMap[dateKey];
+        const existing = window.monthlyScheduleData[dateKey];
+        const same = existing && existing.type === g.type && existing.shift === g.shift &&
+            (existing.ot || '') === (g.ot || '') && (existing.task || '') === (g.task || '') &&
+            (existing.trade || '') === (g.trade || '') && (existing.help || '') === (g.help || '');
+        if (!same) {
+            window.monthlyScheduleData[dateKey] = g;
+            changedSchedule = true;
+        }
+    });
+
+    localKeysInMonth.forEach(dateKey => {
+        const local = window.monthlyScheduleData[dateKey];
+        const hadDataLocally = local && ((local.shift && local.shift !== 'OFF') || local.ot || local.task);
+        if (hadDataLocally && !googleScheduleMap[dateKey]) {
+            delete window.monthlyScheduleData[dateKey];
+            changedSchedule = true;
+        }
+    });
+
+    const meetingEvents = await findEventsByExtendedPropsInRange(timeMin, timeMax, meetingCalendarId, { gportalType: 'meeting' });
+    const googleMeetingMap = {};
+    meetingEvents.forEach(ev => {
+        const meetingId = ev.extendedProperties && ev.extendedProperties.private ? ev.extendedProperties.private.gportalMeetingId : null;
+        if (!meetingId) return;
+        const dateKey = eventDateKey(ev);
+        const parsedDesc = parseMeetingDescription(ev.description);
+        const startTime = (ev.start && ev.start.dateTime) ? ev.start.dateTime.substring(11, 16) : '09:00';
+        const endTime = (ev.end && ev.end.dateTime) ? ev.end.dateTime.substring(11, 16) : '10:00';
+        googleMeetingMap[meetingId] = {
+            id: meetingId,
+            date: dateKey,
+            start: startTime,
+            end: endTime,
+            mode: parsedDesc.mode,
+            title: ev.summary || '',
+            content: parsedDesc.content,
+            location: parsedDesc.location || ev.location || ''
+        };
+    });
+
+    window.monthlyMeetingsData = window.monthlyMeetingsData || {};
+    const localMeetingIdsInMonth = Object.keys(window.monthlyMeetingsData).filter(id => {
+        const m = window.monthlyMeetingsData[id];
+        return m && m.date >= firstKey && m.date <= lastKey;
+    });
+
+    Object.keys(googleMeetingMap).forEach(id => {
+        const g = googleMeetingMap[id];
+        const existing = window.monthlyMeetingsData[id];
+        const same = existing && existing.date === g.date && existing.start === g.start && existing.end === g.end &&
+            existing.mode === g.mode && existing.title === g.title && (existing.content || '') === (g.content || '') &&
+            (existing.location || '') === (g.location || '');
+        if (!same) {
+            window.monthlyMeetingsData[id] = g;
+            changedMeeting = true;
+        }
+    });
+
+    localMeetingIdsInMonth.forEach(id => {
+        if (!googleMeetingMap[id]) {
+            delete window.monthlyMeetingsData[id];
+            changedMeeting = true;
+        }
+    });
+
+    return { changed: changedSchedule || changedMeeting, changedSchedule, changedMeeting };
+};
+
+async function findGoogleTaskByDatePublicWrapper(dateKey) {
+    return findGoogleTaskByDate(dateKey);
+}
+window.findGoogleTaskByDate = findGoogleTaskByDatePublicWrapper;
