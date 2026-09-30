@@ -1,7 +1,63 @@
 /**
  * googleSync.js - Google Auth + Drive + Calendar + Tasks
  *
- * BẢN CẬP NHẬT MỚI NHẤT — TÁCH RIÊNG LỊCH TĂNG CƯỜNG (OT):
+ * BẢN VÁ MỚI NHẤT — LỖI "Maximum call stack size exceeded" KHI ĐỒNG BỘ TASK:
+ * -------------------------------------------------------------------------
+ * TRIỆU CHỨNG: Bấm "Đồng bộ Google", Lịch (Ca/OT) và Lịch họp lên Google
+ * Calendar bình thường, nhưng Task PCCV báo lỗi "Maximum call stack size
+ * exceeded" cho hàng loạt ngày.
+ *
+ * NGUYÊN NHÂN: ở cuối file có đoạn (đã tồn tại từ code gốc, không phải do
+ * các bản vá trước gây ra):
+ *   async function findGoogleTaskByDatePublicWrapper(dateKey) {
+ *       return findGoogleTaskByDate(dateKey);
+ *   }
+ *   window.findGoogleTaskByDate = findGoogleTaskByDatePublicWrapper;
+ * Vì đây là script thường (không phải ES module), hàm khai báo
+ * "function findGoogleTaskByDate(...)" ở top-level CHÍNH LÀ
+ * window.findGoogleTaskByDate ngay từ đầu. Dòng cuối cùng ở trên GHI ĐÈ
+ * window.findGoogleTaskByDate bằng chính cái wrapper. Việc phân giải 1 tên
+ * hàm trần (không có "window." hay "this.") trong 1 script thường được tra
+ * cứu qua thuộc tính của window TẠI THỜI ĐIỂM GỌI, không phải tại thời điểm
+ * khai báo — nên sau dòng ghi đè đó, MỌI lời gọi tên trần
+ * findGoogleTaskByDate(...) ở bất kỳ đâu trong file (kể cả bên trong chính
+ * wrapper) đều trỏ lại đúng cái wrapper đó -> wrapper tự gọi lại chính nó ->
+ * đệ quy vô hạn -> tràn stack.
+ *
+ * Lỗi này TỒN TẠI TỪ TRƯỚC nhưng "ngủ yên": trước đây syncGoogleTask()/
+ * deleteGoogleTask() luôn return sớm ở bước kiểm tra "!gapi.client.tasks"
+ * (do Tasks API chưa Enable / thiếu scope), nên code không bao giờ chạy tới
+ * đoạn gọi findGoogleTaskByDate() để kích hoạt đệ quy. Sau khi Enable Tasks
+ * API / đăng nhập lại để cấp quyền "tasks" (theo hướng dẫn ở bản vá trước),
+ * gapi.client.tasks đã sẵn sàng, code chạy sâu hơn và đâm đúng vào bug này.
+ *
+ * FIX: KHÔNG bọc thêm 1 lớp wrapper gọi lại tên trần nữa — export thẳng
+ * tham chiếu tới hàm gốc: window.findGoogleTaskByDate = findGoogleTaskByDate;
+ * -------------------------------------------------------------------------
+ *
+ * BẢN VÁ TRƯỚC ĐÓ — LỖI "PCCV KHÔNG LÊN ĐƯỢC GOOGLE TASKS" (âm thầm):
+ * -------------------------------------------------------------------------
+ * TRIỆU CHỨNG: Bấm "Đồng bộ Google" (hoặc lưu hiệu chỉnh 1 ngày), sự kiện
+ * Ca làm/Tăng cường lên Google Calendar bình thường, nhưng PCCV không xuất
+ * hiện trên Google Tasks — và không có bất kỳ cảnh báo nào trên giao diện.
+ *
+ * NGUYÊN NHÂN: syncGoogleTask() và deleteGoogleTask() trước đây tự bắt lỗi
+ * bên trong bằng try/catch rồi chỉ console.error() — nuốt lỗi hoàn toàn,
+ * không throw ra ngoài. Nếu request tới Google Tasks API thất bại (403 do
+ * "Google Tasks API" chưa được BẬT (Enable) trong Google Cloud Console cho
+ * đúng project đang dùng CLIENT_ID/API_KEY này, hoặc access token hiện tại
+ * thiếu scope "tasks" — ví dụ do người dùng đăng nhập TRƯỚC KHI scope này
+ * được thêm vào code, token cũ trong localStorage vẫn còn hạn nên không bị
+ * buộc đăng nhập lại — hoặc do tạm thời mất mạng), hàm coi như "chạy xong"
+ * một cách im lặng: Task không được tạo/cập nhật nhưng không ai biết.
+ *
+ * FIX: syncGoogleTask() và deleteGoogleTask() giờ NÉM LẠI (re-throw) lỗi
+ * sau khi log, để nơi gọi (schedule.js: syncScheduleDayToGoogle/saveDayEdit)
+ * bắt được và HIỂN THỊ RÕ cho người dùng biết chính xác ngày nào, lỗi gì —
+ * thay vì báo "Đồng bộ thành công" chung chung dù Task thực ra chưa lên.
+ * -------------------------------------------------------------------------
+ *
+ * BẢN CẬP NHẬT TRƯỚC ĐÓ — TÁCH RIÊNG LỊCH TĂNG CƯỜNG (OT):
  * -------------------------------------------------------------------------
  * Trước đây sự kiện Tăng cường (OT) được đẩy chung vào CÙNG một lịch với
  * Ca làm việc chính (workCalendarId), chỉ phân biệt bằng
@@ -184,6 +240,13 @@ async function initializeGapiClient() {
             discoveryDocs: DISCOVERY_DOCS,
         });
         gapiInited = true;
+        // Cảnh báo sớm ngay từ lúc khởi tạo nếu discovery doc của Tasks API
+        // không nạp được namespace gapi.client.tasks — giúp phát hiện lỗi
+        // "PCCV không lên Google Tasks" ngay từ gốc (thay vì chỉ biết khi
+        // bấm Đồng bộ Google) và ghi rõ log để dễ dò khi báo lỗi.
+        if (!gapi.client.tasks) {
+            console.error('[G-Portal Auth] CẢNH BÁO: gapi.client.tasks KHÔNG tồn tại sau khi init discovery docs. Google Tasks (PCCV) sẽ không thể đồng bộ được. Nguyên nhân thường gặp: "Google Tasks API" chưa được BẬT (Enable) trong Google Cloud Console cho project ứng với CLIENT_ID/API_KEY đang dùng — vào https://console.cloud.google.com/apis/library/tasks.googleapis.com để bật.');
+        }
         checkAllReady();
     } catch (e) {
         console.error("Lỗi khởi tạo GAPI:", e);
@@ -771,8 +834,31 @@ async function findGoogleTaskByDate(dateKey) {
     return items.find(t => t.due && t.due.substring(0, 10) === dateKey);
 }
 
+/**
+ * Đồng bộ (bổ sung hoặc cập nhật) 1 Google Task cho ngày dateKey.
+ *
+ * SỬA LỖI "PCCV KHÔNG LÊN GOOGLE TASKS": trước đây hàm này tự bắt lỗi bên
+ * trong (try/catch) rồi chỉ console.error(), không cho nơi gọi biết là đã
+ * thất bại -> nơi gọi (schedule.js) tưởng đã xong. Nay:
+ *  1) Kiểm tra rõ ràng gapi.client.tasks có tồn tại không trước khi gọi API
+ *     — nếu không, log cảnh báo cụ thể (thường do Google Tasks API chưa
+ *     được bật trong Google Cloud Console) rồi NÉM LỖI ra ngoài.
+ *  2) Nếu gọi API thất bại (403/404/500...), NÉM LẠI lỗi đó (kèm nguyên vẹn
+ *     err.result.error từ Google để nơi gọi hiển thị đúng mã lỗi + thông
+ *     điệp) thay vì nuốt âm thầm.
+ * Nơi gọi (syncScheduleDayToGoogle trong schedule.js) sẽ bắt lỗi này riêng,
+ * không để nó làm hỏng phần đồng bộ Lịch đã thành công, đồng thời hiển thị
+ * rõ cho người dùng biết ngày nào bị lỗi và lỗi gì.
+ */
 window.syncGoogleTask = async function (dateKey, taskName, notes) {
-    if (!AppState.isLoggedIn || !gapi.client.tasks) return;
+    if (!AppState.isLoggedIn) return;
+
+    if (!gapi.client.tasks) {
+        const msg = `gapi.client.tasks chưa sẵn sàng (Google Tasks API có thể chưa được Enable trong Google Cloud Console, hoặc token thiếu quyền "tasks")`;
+        console.error(`[G-Portal] Không thể đồng bộ Task PCCV ngày ${dateKey}: ${msg}`);
+        throw new Error(msg);
+    }
+
     try {
         const dueISO = `${dateKey}T00:00:00.000Z`;
         const existing = await findGoogleTaskByDate(dateKey);
@@ -792,12 +878,15 @@ window.syncGoogleTask = async function (dateKey, taskName, notes) {
         }
         console.log(`Đã đồng bộ Task PCCV ngày ${dateKey}.`);
     } catch (err) {
-        console.error('Lỗi đồng bộ Google Task:', err);
+        console.error(`[G-Portal] Lỗi đồng bộ Google Task ngày ${dateKey}:`, err && err.result ? err.result.error : err);
+        throw err;
     }
 };
 
 window.deleteGoogleTask = async function (dateKey) {
-    if (!AppState.isLoggedIn || !gapi.client.tasks) return;
+    if (!AppState.isLoggedIn) return;
+    if (!gapi.client.tasks) return; // không có gì để xoá nếu Tasks API chưa sẵn sàng
+
     try {
         const existing = await findGoogleTaskByDate(dateKey);
         if (existing) {
@@ -805,7 +894,8 @@ window.deleteGoogleTask = async function (dateKey) {
             console.log(`Đã xoá Task PCCV ngày ${dateKey}.`);
         }
     } catch (err) {
-        console.error('Lỗi xoá Google Task:', err);
+        console.error(`[G-Portal] Lỗi xoá Google Task ngày ${dateKey}:`, err && err.result ? err.result.error : err);
+        throw err;
     }
 };
 
@@ -915,7 +1005,7 @@ window.reconcileMonthWithGoogle = async function (monthDate) {
 
     const dueMin = `${firstKey}T00:00:00.000Z`;
     const dueMax = `${lastKey}T23:59:59.999Z`;
-    const monthTasks = await findGoogleTasksInRange(dueMin, dueMax);
+    const monthTasks = gapi.client.tasks ? await findGoogleTasksInRange(dueMin, dueMax) : [];
     const googleTaskMap = {};
     monthTasks.forEach(t => {
         if (!t.due) return;
@@ -1007,7 +1097,15 @@ window.reconcileMonthWithGoogle = async function (monthDate) {
     return { changed: changedSchedule || changedMeeting, changedSchedule, changedMeeting };
 };
 
-async function findGoogleTaskByDatePublicWrapper(dateKey) {
-    return findGoogleTaskByDate(dateKey);
-}
-window.findGoogleTaskByDate = findGoogleTaskByDatePublicWrapper;
+// LƯU Ý QUAN TRỌNG: KHÔNG được gán window.findGoogleTaskByDate bằng một hàm
+// "wrapper" gọi lại tên trần findGoogleTaskByDate(...) bên trong nó. Đây là
+// script thường (không phải module) nên "function findGoogleTaskByDate(...)"
+// khai báo ở trên CHÍNH LÀ window.findGoogleTaskByDate — nếu gán đè
+// window.findGoogleTaskByDate bằng 1 wrapper gọi lại tên trần đó, từ lúc đó
+// trở đi tên trần findGoogleTaskByDate sẽ luôn trỏ về đúng cái wrapper (vì
+// việc phân giải tên trần tra cứu qua thuộc tính window tại THỜI ĐIỂM GỌI,
+// không phải tại thời điểm khai báo) -> wrapper tự gọi lại chính nó vô hạn
+// -> "Maximum call stack size exceeded". Đây chính là nguyên nhân lỗi tràn
+// stack khi đồng bộ Task PCCV. Cách sửa AN TOÀN: export thẳng tham chiếu tới
+// hàm gốc, không bọc thêm 1 lớp gọi lại tên trần.
+window.findGoogleTaskByDate = findGoogleTaskByDate;

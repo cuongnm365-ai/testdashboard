@@ -197,7 +197,7 @@
                         <div class="toolbar-left">
                             <button id="btn-prev-month" class="btn-icon"><i class='bx bx-chevron-left'></i></button>
                             <h3 id="current-month-display" style="min-width: 140px; text-align: center; color: var(--accent); font-size:15px;">Tháng --/----</h3>
-                            <button id="btn-dash-next-month" id="btn-next-month" class="btn-icon"><i class='bx bx-chevron-right'></i></button>
+                            <button id="btn-next-month" class="btn-icon"><i class='bx bx-chevron-right'></i></button>
                         </div>
                         <div class="toolbar-right">
                             <button id="btn-download-schedule-tpl" class="btn-primary" style="background: #2563eb;"><i class='bx bx-download'></i> File Mẫu</button>
@@ -381,6 +381,12 @@
                                 <input type="text" id="shift-code" placeholder="Mã Ca (VD: S1)">
                                 <input type="text" id="shift-name" placeholder="Tên Ca">
                                 <input type="text" id="shift-time" placeholder="07:15 - 14:45">
+                                <select id="shift-period" class="form-select" style="margin-top:0; max-width:110px;">
+                                    <option value="">Buổi: tự động</option>
+                                    <option value="sang">Sáng</option>
+                                    <option value="chieu">Chiều</option>
+                                    <option value="dem">Đêm</option>
+                                </select>
                             </div>
                             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
                                 <button id="btn-add-shift" class="btn-primary"><i class='bx bx-plus'></i> Thêm</button>
@@ -397,6 +403,12 @@
                                 <input type="text" id="otshift-code" placeholder="Mã Ca (VD: S+)">
                                 <input type="text" id="otshift-name" placeholder="Tên Ca">
                                 <input type="text" id="otshift-time" placeholder="14:45 - 18:00">
+                                <select id="otshift-period" class="form-select" style="margin-top:0; max-width:110px;">
+                                    <option value="">Buổi: tự động</option>
+                                    <option value="sang">Sáng</option>
+                                    <option value="chieu">Chiều</option>
+                                    <option value="dem">Đêm</option>
+                                </select>
                             </div>
                             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
                                 <button id="btn-add-otshift" class="btn-primary"><i class='bx bx-plus'></i> Thêm</button>
@@ -522,6 +534,7 @@
                         <option value="chinhchu">Chính chủ</option>
                         <option value="doica">Đổi ca</option>
                         <option value="trucho">Trực hộ</option>
+                        <option value="ot">Tăng cường (OT) – ngày OFF</option>
                     </select>
                 </div>
                 <div class="input-group"><label style="width:110px;">Ca chính:</label><select id="modal-shift" class="form-select"></select></div>

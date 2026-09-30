@@ -121,3 +121,47 @@ textarea.form-input { resize: vertical; min-height: 96px; }
 
 /* ---------- Card nghiệp vụ dùng chung cho phần Cài Đặt gộp (Ca/PCCV/Email...) ---------- */
 .ai-card.span-2 { grid-column: 1 / -1; }
+/* ---------- LỊCH LÀM VIỆC v2: thẻ ca theo buổi, phân loại, OT 3 kiểu ---------- */
+.calendar-day { min-width: 0; }
+.day-status.is-ot { background: rgba(239, 68, 68, .16); color: #fca5a5; }
+
+.shift-card { position: relative; border-left: 4px solid var(--shift-color); background: rgba(56, 189, 248, .08); border-radius: 9px; padding: 7px 8px; display: grid; gap: 3px; min-width: 0; }
+.shift-card.p-sang  { --period: #f59e0b; background: linear-gradient(135deg, rgba(245, 158, 11, .14), rgba(245, 158, 11, .03)); }
+.shift-card.p-chieu { --period: #38bdf8; background: linear-gradient(135deg, rgba(56, 189, 248, .14), rgba(56, 189, 248, .03)); }
+.shift-card.p-dem   { --period: #818cf8; background: linear-gradient(135deg, rgba(129, 140, 248, .18), rgba(129, 140, 248, .04)); }
+.sc-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sc-head b { color: var(--text-main); font-size: 13px; }
+.sc-name { font-size: 11px; color: var(--text-main); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-time { font-size: 10.5px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; }
+.period-badge { font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px; display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+    color: var(--period, var(--accent)); background: color-mix(in srgb, var(--period, var(--accent)) 16%, transparent); }
+.type-badge { width: fit-content; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
+.type-badge.trucho { background: rgba(16, 185, 129, .18); color: #34d399; }
+.type-badge.doica  { background: rgba(245, 158, 11, .2); color: #fbbf24; }
+.person-row { font-size: 10.5px; font-weight: 600; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* OT (A): ngày OFF, làm ca "+" */
+.ot-plus { border: 1px dashed #ef4444; background: rgba(239, 68, 68, .10); border-radius: 9px; padding: 6px 8px; display: grid; gap: 3px; }
+.otp-head { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #fca5a5; font-weight: 700; }
+.otp-head i { color: #f87171; }
+.otp-head .period-badge { margin-left: auto; --period: #f87171; }
+/* OT (B): ngày OFF, làm nguyên ca chính */
+.shift-card.ot-full { outline: 1px dashed #ef4444; outline-offset: -1px; padding-top: 14px; }
+.sc-ribbon { position: absolute; top: 0; right: 0; background: #ef4444; color: #fff; font-size: 9px; font-weight: 800; padding: 1px 7px; border-radius: 0 8px 0 8px; }
+/* OT (C): đã có ca chính, làm thêm */
+.ot-extra { width: 100%; border-radius: 8px; padding: 4px 7px; font-size: 10.5px; font-weight: 700; color: #fff; display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    background: linear-gradient(90deg, #f97316, #ef4444); }
+
+.mini-pill.task.empty { opacity: .55; border-style: dotted; }
+:root[data-theme="light"] .ot-plus .otp-head { color: #b91c1c; }
+:root[data-theme="light"] .type-badge.trucho { color: #047857; }
+:root[data-theme="light"] .type-badge.doica { color: #b45309; }
+
+/* Sidebar phân công tháng: chống tràn / đè trên màn nhỏ */
+.schedule-layout > * { min-width: 0; }
+.agenda-item { min-width: 0; }
+@media (max-width: 760px) {
+    .calendar-day { padding: 5px; min-height: 92px; }
+    .sc-name, .person-row { font-size: 10px; }
+    .period-badge { font-size: 9px; padding: 1px 4px; }
+}
