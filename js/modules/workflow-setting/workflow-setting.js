@@ -1,24 +1,39 @@
 /**
  * workflow-setting.js - Workflow Settings Module
- * Quản lý: Loại RQL2, Phân loại, Phương án (dành cho module Giám Sát, Complaint)
+ * Quản lý: Phân loại RQL2, Vùng miền, Phương án (dành cho module Giám Sát, Complaint)
  */
 
 window.workflowSettings = {
-    requestTypes: [],
-    subTypes: [],
-    resolutions: []
+    requestTypes: [], // { type, subType }
+    regions: [], // { region, provinceCode, provinceName, branch }
+    resolutions: [] // { name }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
     // Buttons Add
     const btnAddReqType = document.getElementById('btn-add-req-type');
-    const btnAddSubType = document.getElementById('btn-add-sub-type');
+    const btnAddRegion = document.getElementById('btn-add-region');
     const btnAddResolution = document.getElementById('btn-add-resolution');
 
     if (btnAddReqType) btnAddReqType.addEventListener('click', addRequestType);
-    if (btnAddSubType) btnAddSubType.addEventListener('click', addSubType);
+    if (btnAddRegion) btnAddRegion.addEventListener('click', addRegion);
     if (btnAddResolution) btnAddResolution.addEventListener('click', addResolution);
+
+    // Import/Export
+    bindIfExists('btn-export-req', 'click', exportReqExcel);
+    bindIfExists('import-req-excel', 'change', importReqExcel);
+    
+    bindIfExists('btn-export-region', 'click', exportRegionExcel);
+    bindIfExists('import-region-excel', 'change', importRegionExcel);
+    
+    bindIfExists('btn-export-res', 'click', exportResExcel);
+    bindIfExists('import-res-excel', 'change', importResExcel);
 });
+
+function bindIfExists(id, eventName, handler) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(eventName, handler);
+}
 
 window.loadWorkflowSettingsFromDrive = async function() {
     if (!window.GPORTAL_FOLDERS || !AppState.isLoggedIn) return;
@@ -29,7 +44,7 @@ window.loadWorkflowSettingsFromDrive = async function() {
         
         if (settingsData) {
             window.workflowSettings.requestTypes = Array.isArray(settingsData.requestTypes) ? settingsData.requestTypes : [];
-            window.workflowSettings.subTypes = Array.isArray(settingsData.subTypes) ? settingsData.subTypes : [];
+            window.workflowSettings.regions = Array.isArray(settingsData.regions) ? settingsData.regions : [];
             window.workflowSettings.resolutions = Array.isArray(settingsData.resolutions) ? settingsData.resolutions : [];
         }
         
@@ -58,12 +73,11 @@ window.saveWorkflowSettingsToDrive = async function() {
 
 function renderWorkflowSettingsUI() {
     renderRequestTypes();
-    renderSubTypes();
+    renderRegions();
     renderResolutions();
-    updateSubTypeParentDropdown();
 }
 
-// ==================== REQUEST TYPE ====================
+// ==================== REQUEST TYPE & SUB-TYPE ====================
 function renderRequestTypes() {
     const list = document.getElementById('ws-req-type-list');
     if (!list) return;
@@ -72,7 +86,8 @@ function renderRequestTypes() {
         const li = document.createElement('li');
         li.innerHTML = `
             <div>
-                <strong>${item.name}</strong>
+                <strong>${item.type}</strong> 
+                <span class="tag-task" style="font-size: 11px; margin-left: 8px; padding: 2px 6px;">${item.subType}</span>
             </div>
             <button class="btn-icon danger" type="button" title="Xóa" onclick="deleteRequestType(${index})"><i class='bx bx-trash'></i></button>
         `;
@@ -81,97 +96,173 @@ function renderRequestTypes() {
 }
 
 function addRequestType() {
-    const nameInput = document.getElementById('ws-req-type-name');
-    const name = nameInput.value.trim();
-    if (!name) return alert('Vui lòng nhập tên Loại RQL2');
+    const typeInput = document.getElementById('ws-req-type-name');
+    const subTypeInput = document.getElementById('ws-sub-type-name');
+    const type = typeInput.value.trim();
+    const subType = subTypeInput.value.trim();
     
-    // Check duplicate
-    if (window.workflowSettings.requestTypes.some(rt => rt.name.toLowerCase() === name.toLowerCase())) {
-        return alert('Tên này đã tồn tại!');
+    if (!type || !subType) return alert('Vui lòng nhập cả Loại RQL2 và Phân loại!');
+    
+    if (window.workflowSettings.requestTypes.some(rt => rt.type.toLowerCase() === type.toLowerCase() && rt.subType.toLowerCase() === subType.toLowerCase())) {
+        return alert('Tổ hợp Loại RQL2 và Phân loại này đã tồn tại!');
     }
 
-    window.workflowSettings.requestTypes.push({ name });
-    nameInput.value = '';
+    window.workflowSettings.requestTypes.push({ type, subType });
+    typeInput.value = '';
+    subTypeInput.value = '';
     
     renderRequestTypes();
-    updateSubTypeParentDropdown();
     window.saveWorkflowSettingsToDrive();
 }
 
 window.deleteRequestType = function(index) {
-    if (confirm('Bạn có chắc muốn xóa loại này? Các Phân loại (Sub-type) thuộc loại này sẽ không còn hiển thị đúng nếu không được cập nhật.')) {
+    if (confirm('Bạn có chắc muốn xóa loại này?')) {
         window.workflowSettings.requestTypes.splice(index, 1);
         renderRequestTypes();
-        updateSubTypeParentDropdown();
         window.saveWorkflowSettingsToDrive();
     }
 };
 
-// ==================== SUB-TYPE ====================
-function updateSubTypeParentDropdown() {
-    const select = document.getElementById('ws-sub-type-parent');
-    if (!select) return;
-    const currentVal = select.value;
-    
-    select.innerHTML = '<option value="">-- Chọn Loại RQL2 --</option>';
-    window.workflowSettings.requestTypes.forEach(rt => {
-        const option = document.createElement('option');
-        option.value = rt.name;
-        option.textContent = rt.name;
-        select.appendChild(option);
-    });
-    
-    if (currentVal && window.workflowSettings.requestTypes.some(rt => rt.name === currentVal)) {
-        select.value = currentVal;
-    }
+function exportReqExcel() {
+    const data = window.workflowSettings.requestTypes.map(item => ({
+        'Loại RQL2': item.type,
+        'Phân loại': item.subType
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "RequestType");
+    XLSX.writeFile(wb, "RQL2_PhanLoai.xlsx");
 }
 
-function renderSubTypes() {
-    const list = document.getElementById('ws-sub-type-list');
+function importReqExcel(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            const data = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data, {type: 'array'});
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(ws);
+            
+            let count = 0;
+            jsonData.forEach(row => {
+                const type = (row['Loại RQL2'] || '').trim();
+                const subType = (row['Phân loại'] || '').trim();
+                if (type && subType) {
+                    if (!window.workflowSettings.requestTypes.some(rt => rt.type.toLowerCase() === type.toLowerCase() && rt.subType.toLowerCase() === subType.toLowerCase())) {
+                        window.workflowSettings.requestTypes.push({ type, subType });
+                        count++;
+                    }
+                }
+            });
+            renderRequestTypes();
+            window.saveWorkflowSettingsToDrive();
+            alert(`Đã import thêm ${count} bản ghi!`);
+        } catch(err) {
+            alert('Lỗi đọc file Excel: ' + err.message);
+        }
+        e.target.value = ''; // reset
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ==================== REGIONS ====================
+function renderRegions() {
+    const list = document.getElementById('ws-region-list');
     if (!list) return;
     list.innerHTML = '';
-    window.workflowSettings.subTypes.forEach((item, index) => {
+    window.workflowSettings.regions.forEach((item, index) => {
         const li = document.createElement('li');
         li.innerHTML = `
             <div>
-                <strong>${item.name}</strong> 
-                <span class="tag-task" style="font-size: 11px; margin-left: 8px; padding: 2px 6px;">${item.parentType}</span>
+                <strong>${item.region}</strong> 
+                <span style="margin-left: 6px; font-size: 13px; color: var(--text-muted);">${item.provinceCode} - ${item.provinceName} - ${item.branch}</span>
             </div>
-            <button class="btn-icon danger" type="button" title="Xóa" onclick="deleteSubType(${index})"><i class='bx bx-trash'></i></button>
+            <button class="btn-icon danger" type="button" title="Xóa" onclick="deleteRegion(${index})"><i class='bx bx-trash'></i></button>
         `;
         list.appendChild(li);
     });
 }
 
-function addSubType() {
-    const parentInput = document.getElementById('ws-sub-type-parent');
-    const nameInput = document.getElementById('ws-sub-type-name');
+function addRegion() {
+    const region = document.getElementById('ws-region-name').value.trim();
+    const provinceCode = document.getElementById('ws-province-code').value.trim();
+    const provinceName = document.getElementById('ws-province-name').value.trim();
+    const branch = document.getElementById('ws-branch-name').value.trim();
     
-    const parentType = parentInput.value;
-    const name = nameInput.value.trim();
+    if (!region || !provinceCode || !provinceName || !branch) return alert('Vui lòng nhập đầy đủ Khu Vực, Mã Tỉnh, Tỉnh/Thành, và Chi Nhánh!');
     
-    if (!parentType) return alert('Vui lòng chọn Loại RQL2 trước!');
-    if (!name) return alert('Vui lòng nhập tên Phân loại');
-
-    // Check duplicate
-    if (window.workflowSettings.subTypes.some(st => st.name.toLowerCase() === name.toLowerCase() && st.parentType === parentType)) {
-        return alert('Tên phân loại này đã tồn tại trong Loại RQL2 đã chọn!');
+    if (window.workflowSettings.regions.some(r => r.branch.toLowerCase() === branch.toLowerCase())) {
+        return alert('Chi nhánh này đã tồn tại!');
     }
 
-    window.workflowSettings.subTypes.push({ name, parentType });
-    nameInput.value = '';
+    window.workflowSettings.regions.push({ region, provinceCode, provinceName, branch });
+    document.getElementById('ws-region-name').value = '';
+    document.getElementById('ws-province-code').value = '';
+    document.getElementById('ws-province-name').value = '';
+    document.getElementById('ws-branch-name').value = '';
     
-    renderSubTypes();
+    renderRegions();
     window.saveWorkflowSettingsToDrive();
 }
 
-window.deleteSubType = function(index) {
-    if (confirm('Bạn có chắc muốn xóa phân loại này?')) {
-        window.workflowSettings.subTypes.splice(index, 1);
-        renderSubTypes();
+window.deleteRegion = function(index) {
+    if (confirm('Bạn có chắc muốn xóa vùng miền này?')) {
+        window.workflowSettings.regions.splice(index, 1);
+        renderRegions();
         window.saveWorkflowSettingsToDrive();
     }
 };
+
+function exportRegionExcel() {
+    const data = window.workflowSettings.regions.map(item => ({
+        'Khu Vực': item.region,
+        'Mã Tỉnh/Thành': item.provinceCode,
+        'Tỉnh / Thành': item.provinceName,
+        'Chi Nhánh': item.branch
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Regions");
+    XLSX.writeFile(wb, "DuLieuVungMien.xlsx");
+}
+
+function importRegionExcel(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            const data = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data, {type: 'array'});
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(ws);
+            
+            let count = 0;
+            jsonData.forEach(row => {
+                const region = (row['Khu Vực'] || '').trim();
+                const provinceCode = (row['Mã Tỉnh/Thành'] || '').trim();
+                const provinceName = (row['Tỉnh / Thành'] || '').trim();
+                const branch = (row['Chi Nhánh'] || '').trim();
+                
+                if (region && provinceCode && provinceName && branch) {
+                    if (!window.workflowSettings.regions.some(r => r.branch.toLowerCase() === branch.toLowerCase())) {
+                        window.workflowSettings.regions.push({ region, provinceCode, provinceName, branch });
+                        count++;
+                    }
+                }
+            });
+            renderRegions();
+            window.saveWorkflowSettingsToDrive();
+            alert(`Đã import thêm ${count} bản ghi!`);
+        } catch(err) {
+            alert('Lỗi đọc file Excel: ' + err.message);
+        }
+        e.target.value = ''; // reset
+    };
+    reader.readAsArrayBuffer(file);
+}
 
 // ==================== RESOLUTION ====================
 function renderResolutions() {
@@ -214,3 +305,45 @@ window.deleteResolution = function(index) {
         window.saveWorkflowSettingsToDrive();
     }
 };
+
+function exportResExcel() {
+    const data = window.workflowSettings.resolutions.map(item => ({
+        'Phương án': item.name
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Resolutions");
+    XLSX.writeFile(wb, "PhuongAn.xlsx");
+}
+
+function importResExcel(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        try {
+            const data = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data, {type: 'array'});
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(ws);
+            
+            let count = 0;
+            jsonData.forEach(row => {
+                const name = (row['Phương án'] || '').trim();
+                if (name) {
+                    if (!window.workflowSettings.resolutions.some(res => res.name.toLowerCase() === name.toLowerCase())) {
+                        window.workflowSettings.resolutions.push({ name });
+                        count++;
+                    }
+                }
+            });
+            renderResolutions();
+            window.saveWorkflowSettingsToDrive();
+            alert(`Đã import thêm ${count} bản ghi!`);
+        } catch(err) {
+            alert('Lỗi đọc file Excel: ' + err.message);
+        }
+        e.target.value = ''; // reset
+    };
+    reader.readAsArrayBuffer(file);
+}

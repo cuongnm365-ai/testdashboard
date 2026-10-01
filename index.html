@@ -179,41 +179,51 @@
                         <p class="text-sm mt-2 text-gray-400">Thiết lập các danh mục động (Loại RQL2, Phân loại, Phương án) cho 2 module trên.</p>
                     </div>
                     <div class="settings-grid" id="workflow-settings-container">
-                        <!-- Request Type -->
-                        <div class="ai-card">
-                            <h3><i class='bx bx-list-ul'></i> Loại RQL2 (Request Type)</h3>
+                        <!-- Request Type & Sub-Type -->
+                        <div class="ai-card span-2">
+                            <h3><i class='bx bx-list-ul'></i> Phân loại RQL2 (Loại RQL2 & Sub-Type)</h3>
                             <div class="input-group" style="margin-top:16px;">
-                                <input type="text" id="ws-req-type-name" placeholder="Tên Loại RQL2">
+                                <input type="text" id="ws-req-type-name" placeholder="Loại RQL2 (VD: Triển Khai | Bảo Trì)">
+                                <input type="text" id="ws-sub-type-name" placeholder="Phân loại (VD: Triển Khai)">
                             </div>
                             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
                                 <button id="btn-add-req-type" class="btn-primary"><i class='bx bx-plus'></i> Thêm</button>
+                                <button id="btn-export-req" class="btn-ghost"><i class='bx bx-download'></i> Export Excel</button>
+                                <label for="import-req-excel" class="btn-ghost" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;"><i class='bx bx-upload'></i> Import Excel</label>
+                                <input type="file" id="import-req-excel" accept=".xlsx, .xls" style="display:none;">
                             </div>
                             <ul id="ws-req-type-list" class="data-list"></ul>
                         </div>
 
-                        <!-- Sub-Type -->
-                        <div class="ai-card">
-                            <h3><i class='bx bx-sitemap'></i> Phân loại (Sub-Type)</h3>
+                        <!-- Regions / Provinces / Branches -->
+                        <div class="ai-card span-2">
+                            <h3><i class='bx bx-map-pin'></i> Dữ liệu Vùng miền (Khu vực, Tỉnh/Thành, Chi nhánh)</h3>
                             <div class="input-group" style="margin-top:16px;">
-                                <select id="ws-sub-type-parent" class="form-select">
-                                    <option value="">-- Chọn Loại RQL2 --</option>
-                                </select>
-                                <input type="text" id="ws-sub-type-name" placeholder="Tên Phân loại">
+                                <input type="text" id="ws-region-name" placeholder="Khu Vực">
+                                <input type="text" id="ws-province-code" placeholder="Mã Tỉnh (VD: HN)">
+                                <input type="text" id="ws-province-name" placeholder="Tỉnh/Thành (VD: 01.Hà Nội)">
+                                <input type="text" id="ws-branch-name" placeholder="Chi Nhánh (VD: HNI_01)">
                             </div>
                             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
-                                <button id="btn-add-sub-type" class="btn-primary"><i class='bx bx-plus'></i> Thêm</button>
+                                <button id="btn-add-region" class="btn-primary"><i class='bx bx-plus'></i> Thêm</button>
+                                <button id="btn-export-region" class="btn-ghost"><i class='bx bx-download'></i> Export Excel</button>
+                                <label for="import-region-excel" class="btn-ghost" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;"><i class='bx bx-upload'></i> Import Excel</label>
+                                <input type="file" id="import-region-excel" accept=".xlsx, .xls" style="display:none;">
                             </div>
-                            <ul id="ws-sub-type-list" class="data-list"></ul>
+                            <ul id="ws-region-list" class="data-list"></ul>
                         </div>
 
                         <!-- Resolution -->
-                        <div class="ai-card">
+                        <div class="ai-card span-2">
                             <h3><i class='bx bx-check-shield'></i> Phương án (Resolution)</h3>
                             <div class="input-group" style="margin-top:16px;">
                                 <input type="text" id="ws-resolution-name" placeholder="Tên Phương án">
                             </div>
                             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
                                 <button id="btn-add-resolution" class="btn-primary"><i class='bx bx-plus'></i> Thêm</button>
+                                <button id="btn-export-res" class="btn-ghost"><i class='bx bx-download'></i> Export Excel</button>
+                                <label for="import-res-excel" class="btn-ghost" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px;"><i class='bx bx-upload'></i> Import Excel</label>
+                                <input type="file" id="import-res-excel" accept=".xlsx, .xls" style="display:none;">
                             </div>
                             <ul id="ws-resolution-list" class="data-list"></ul>
                         </div>
