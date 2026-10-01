@@ -87,7 +87,6 @@ function addShift() {
     const code = getInputValue('shift-code');
     const name = getInputValue('shift-name');
     const time = getInputValue('shift-time');
-    const period = getInputValue('shift-period');
 
     if (!code || !time) {
         alert('Vui lòng nhập Mã Ca và Thời gian!');
@@ -105,21 +104,20 @@ function addShift() {
     const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
     const color = colors[Math.floor(Math.random() * colors.length)];
 
-    window.portalSettings.shifts.push({ code, name, time, color, period });
+    window.portalSettings.shifts.push({ code, name, time, color });
     saveSettingsToDriveAndRefresh();
 
     document.getElementById('shift-code').value = '';
     document.getElementById('shift-name').value = '';
     document.getElementById('shift-time').value = '';
-    const ps = document.getElementById('shift-period'); if (ps) ps.value = '';
 }
 
 function downloadShiftTemplate() {
     const ws_data = [
-        ["Mã Ca", "Tên Ca", "Thời gian", "Buổi", "Ghi chú"],
-        ["S1", "Ca sáng", "07:15 - 14:45", "Sáng", ""],
-        ["S2", "Ca chiều", "14:45 - 22:15", "Chiều", ""],
-        ["S3", "Ca tối", "22:15 - 07:15", "Đêm", ""]
+        ["Mã Ca", "Tên Ca", "Thời gian", "Ghi chú"],
+        ["S1", "Ca sáng", "07:15 - 14:45", ""],
+        ["S2", "Ca chiều", "14:45 - 22:15", ""],
+        ["S3", "Ca tối", "22:15 - 07:15", ""]
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
@@ -147,14 +145,12 @@ function importShiftFromExcel(event) {
                 const code = row['Mã Ca'] || row['Code'];
                 const name = row['Tên Ca'] || row['Name'] || '';
                 const time = row['Thời gian'] || row['Time'];
-                const periodRaw = (row['Buổi'] || row['Period'] || '').toString().trim().toLowerCase();
-                const period = periodRaw.startsWith('s') ? 'sang' : periodRaw.startsWith('c') ? 'chieu' : (periodRaw.startsWith('đ') || periodRaw.startsWith('d')) ? 'dem' : '';
 
                 if (code && time) {
                     if (!window.portalSettings.shifts.find(s => s.code === code)) {
                         const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
                         const color = colors[Math.floor(Math.random() * colors.length)];
-                        window.portalSettings.shifts.push({ code, name, time, color, period });
+                        window.portalSettings.shifts.push({ code, name, time, color });
                         addedCount++;
                     }
                 }
@@ -178,7 +174,6 @@ function addOTShift() {
     const code = getInputValue('otshift-code');
     const name = getInputValue('otshift-name');
     const time = getInputValue('otshift-time');
-    const period = getInputValue('otshift-period');
 
     if (!code || !time) {
         alert('Vui lòng nhập Mã ca và Thời gian!');
@@ -195,21 +190,20 @@ function addOTShift() {
 
     const colors = ['#ea4335', '#f97316', '#eab308', '#14b8a6', '#a855f7'];
     const color = colors[Math.floor(Math.random() * colors.length)];
-    window.portalSettings.otShifts.push({ code, name, time, color, period });
+    window.portalSettings.otShifts.push({ code, name, time, color });
     saveSettingsToDriveAndRefresh();
 
     document.getElementById('otshift-code').value = '';
     document.getElementById('otshift-name').value = '';
     document.getElementById('otshift-time').value = '';
-    const ps = document.getElementById('otshift-period'); if (ps) ps.value = '';
 }
 
 function downloadOTShiftTemplate() {
     const ws_data = [
-        ["Mã Ca", "Tên Ca", "Thời gian", "Buổi", "Ghi chú"],
-        ["S+", "Tăng cường sáng", "14:45 - 18:00", "Chiều", ""],
-        ["T+", "Tăng cường chiều", "22:15 - 02:00", "Đêm", ""],
-        ["C+", "Tăng cường tối", "06:00 - 07:15", "Sáng", ""]
+        ["Mã Ca", "Tên Ca", "Thời gian", "Ghi chú"],
+        ["S+", "Tăng cường sáng", "14:45 - 18:00", ""],
+        ["T+", "Tăng cường chiều", "22:15 - 02:00", ""],
+        ["C+", "Tăng cường tối", "06:00 - 07:15", ""]
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
@@ -237,12 +231,10 @@ function importOTShiftFromExcel(event) {
                 const code = row['Mã Ca'] || row['Code'];
                 const name = row['Tên Ca'] || row['Name'] || '';
                 const time = row['Thời gian'] || row['Time'];
-                const periodRaw = (row['Buổi'] || row['Period'] || '').toString().trim().toLowerCase();
-                const period = periodRaw.startsWith('s') ? 'sang' : periodRaw.startsWith('c') ? 'chieu' : (periodRaw.startsWith('đ') || periodRaw.startsWith('d')) ? 'dem' : '';
 
                 if (code && time) {
                     if (!window.portalSettings.otShifts.find(s => s.code === code)) {
-                        window.portalSettings.otShifts.push({ code, name, time, color: '#ea4335', period });
+                        window.portalSettings.otShifts.push({ code, name, time, color: '#ea4335' });
                         addedCount++;
                     }
                 }
@@ -442,12 +434,12 @@ async function saveCoefficients() {
 function getDefaultSettings() {
     return {
         shifts: [
-            { code: 'S1', name: 'Ca sáng', time: '07:15 - 14:45', color: '#3b82f6', period: 'sang' },
-            { code: 'S2', name: 'Ca chiều', time: '14:45 - 22:15', color: '#8b5cf6', period: 'chieu' },
-            { code: 'S3', name: 'Ca tối', time: '22:15 - 07:15', color: '#ec4899', period: 'dem' }
+            { code: 'S1', name: 'Ca sáng', time: '07:15 - 14:45', color: '#3b82f6' },
+            { code: 'S2', name: 'Ca chiều', time: '14:45 - 22:15', color: '#8b5cf6' },
+            { code: 'S3', name: 'Ca tối', time: '22:15 - 07:15', color: '#ec4899' }
         ],
         otShifts: [
-            { code: 'S+', name: 'Tăng cường ca', time: '14:45 - 18:00', color: '#ea4335', period: 'chieu' }
+            { code: 'S+', name: 'Tăng cường ca', time: '14:45 - 18:00', color: '#ea4335' }
         ],
         tasks: [
             { code: 'CHAT', name: 'Chat hỗ trợ' },
@@ -480,7 +472,6 @@ function renderSettingsUI() {
                         <span class="color-badge" style="background:${s.color || '#64748b'}"></span>
                         <b>${s.code}</b>${s.name ? ' - ' + s.name : ''}
                         <span style="color:var(--text-muted); font-size:12px;"> (${s.time || ''})</span>
-                        ${s.period ? `<span style="font-size:11px; color:var(--accent);"> · ${({sang:'Sáng',chieu:'Chiều',dem:'Đêm'})[s.period] || ''}</span>` : ''}
                     </span>
                     <button class="btn-delete" onclick="deleteShift('${s.code}')" title="Xoá"><i class='bx bx-trash'></i></button>
                 </li>`).join('')
@@ -498,7 +489,6 @@ function renderSettingsUI() {
                         <span class="color-badge" style="background:${s.color || '#ea4335'}"></span>
                         <b>${s.code}</b>${s.name ? ' - ' + s.name : ''}
                         <span style="color:var(--text-muted); font-size:12px;"> (${s.time || ''})</span>
-                        ${s.period ? `<span style="font-size:11px; color:var(--accent);"> · ${({sang:'Sáng',chieu:'Chiều',dem:'Đêm'})[s.period] || ''}</span>` : ''}
                     </span>
                     <button class="btn-delete" onclick="deleteOTShift('${s.code}')" title="Xoá"><i class='bx bx-trash'></i></button>
                 </li>`).join('')
