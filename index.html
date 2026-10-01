@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/login.css">
     <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/schedule.css">
     <link rel="stylesheet" href="css/email-tool.css">
 
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-P091WPTF8N"></script>
@@ -193,11 +194,16 @@
                 </section>
 
                                 <section id="view-schedule" class="app-view">
-                    <div class="toolbar ai-card">
+                    <div class="toolbar ai-card sch-toolbar">
                         <div class="toolbar-left">
-                            <button id="btn-prev-month" class="btn-icon"><i class='bx bx-chevron-left'></i></button>
-                            <h3 id="current-month-display" style="min-width: 140px; text-align: center; color: var(--accent); font-size:15px;">Tháng --/----</h3>
-                            <button id="btn-next-month" class="btn-icon"><i class='bx bx-chevron-right'></i></button>
+                            <button id="btn-prev-month" class="btn-icon" type="button" title="Trước"><i class='bx bx-chevron-left'></i></button>
+                            <h3 id="current-month-display" style="min-width: 190px; text-align: center; color: var(--accent); font-size:15px;">Tháng --/----</h3>
+                            <button id="btn-next-month" class="btn-icon" type="button" title="Sau"><i class='bx bx-chevron-right'></i></button>
+                            <button id="btn-go-today" class="btn-ghost" type="button" style="padding: 8px 14px;">Hôm nay</button>
+                            <div class="sch-view-switch">
+                                <button id="btn-view-month" type="button" class="active"><i class='bx bx-calendar'></i> Tháng</button>
+                                <button id="btn-view-week" type="button"><i class='bx bx-columns'></i> Tuần</button>
+                            </div>
                         </div>
                         <div class="toolbar-right">
                             <button id="btn-download-schedule-tpl" class="btn-primary" style="background: #2563eb;"><i class='bx bx-download'></i> File Mẫu</button>
@@ -208,13 +214,32 @@
                             <button id="btn-check-sync" class="btn-primary" style="background: #0891b2;" title="Đọc lại Google Calendar/Tasks để khớp lại dữ liệu nếu bạn đã sửa/xóa trực tiếp trên Google">
                                 <i class='bx bx-refresh'></i> Kiểm tra đồng bộ
                             </button>
+                            <button id="btn-cleanup-duplicates" class="btn-primary" style="background: #be123c;" title="Quét và xoá các Event/Task đã lỡ bị tạo trùng lặp trên Google Calendar/Tasks trong tháng đang xem">
+                                <i class='bx bx-broom'></i> Dọn dẹp trùng lặp
+                            </button>
                         </div>
                     </div>
 
                     <div class="schedule-layout">
-                        <div class="calendar-container ai-card">
-                            <div class="calendar-header-days"><div>CN</div><div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div></div>
-                            <div id="calendar-grid" class="calendar-grid"></div>
+                        <div class="sch-main ai-card">
+                            <div class="sch-legend">
+                                <span><i class="sw sang"></i>Ca sáng</span>
+                                <span><i class="sw chieu"></i>Ca chiều</span>
+                                <span><i class="sw dem"></i>Ca đêm</span>
+                                <span><i class="sw otonly"></i>Tăng cường cả ca (ngày nghỉ)</span>
+                                <span><i class="sw otadd"></i>+OT thêm vào ca chính</span>
+                                <span><i class="sw cover"></i>Trực hộ</span>
+                                <span><i class="sw swap"></i>Đổi ca</span>
+                            </div>
+
+                            <div id="sch-month-view">
+                                <div class="sch-month-head"><div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div></div>
+                                <div id="calendar-grid" class="sch-month-grid"></div>
+                            </div>
+
+                            <div id="sch-week-view" style="display: none;">
+                                <div id="week-board"></div>
+                            </div>
                         </div>
                         <aside class="schedule-side ai-card">
                             <div class="side-head"><span><i class='bx bx-briefcase-alt-2'></i> Phân công tháng</span><b id="schedule-task-count">0</b></div>
@@ -342,12 +367,24 @@
                                         </div>
                                         <div id="emailHeaders" class="hidden">
                                             <div id="ccDisplay" class="mail-meta-row hidden">
-                                                <span class="mail-meta-label font-mono">CC</span>
-                                                <span id="ccValue" class="font-mono text-xs" style="color: var(--text-main);"></span>
+                                                <span class="mail-meta-label font-mono" style="padding-top: 2px;">CC</span>
+                                                <div class="flex-1 min-w-0">
+                                                    <span id="ccValue" class="font-mono text-xs block" style="color: var(--text-main);"></span>
+                                                    <p class="cc-bcc-note">
+                                                        <i class="fa-solid fa-circle-exclamation mr-0.5"></i>
+                                                        Vui lòng kiểm tra lại danh sách email, bổ sung nếu còn thiếu hoặc liên hệ <b>Admin</b> để cập nhật.
+                                                    </p>
+                                                </div>
                                             </div>
                                             <div id="bccDisplay" class="mail-meta-row hidden">
-                                                <span class="mail-meta-label font-mono">BCC</span>
-                                                <span id="bccValue" class="font-mono text-xs" style="color: var(--text-main);"></span>
+                                                <span class="mail-meta-label font-mono" style="padding-top: 2px;">BCC</span>
+                                                <div class="flex-1 min-w-0">
+                                                    <span id="bccValue" class="font-mono text-xs block" style="color: var(--text-main);"></span>
+                                                    <p class="cc-bcc-note">
+                                                        <i class="fa-solid fa-circle-exclamation mr-0.5"></i>
+                                                        Vui lòng kiểm tra lại danh sách email, bổ sung nếu còn thiếu hoặc liên hệ <b>Admin</b> để cập nhật.
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -381,12 +418,6 @@
                                 <input type="text" id="shift-code" placeholder="Mã Ca (VD: S1)">
                                 <input type="text" id="shift-name" placeholder="Tên Ca">
                                 <input type="text" id="shift-time" placeholder="07:15 - 14:45">
-                                <select id="shift-period" class="form-select" style="margin-top:0; max-width:110px;">
-                                    <option value="">Buổi: tự động</option>
-                                    <option value="sang">Sáng</option>
-                                    <option value="chieu">Chiều</option>
-                                    <option value="dem">Đêm</option>
-                                </select>
                             </div>
                             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
                                 <button id="btn-add-shift" class="btn-primary"><i class='bx bx-plus'></i> Thêm</button>
@@ -403,12 +434,6 @@
                                 <input type="text" id="otshift-code" placeholder="Mã Ca (VD: S+)">
                                 <input type="text" id="otshift-name" placeholder="Tên Ca">
                                 <input type="text" id="otshift-time" placeholder="14:45 - 18:00">
-                                <select id="otshift-period" class="form-select" style="margin-top:0; max-width:110px;">
-                                    <option value="">Buổi: tự động</option>
-                                    <option value="sang">Sáng</option>
-                                    <option value="chieu">Chiều</option>
-                                    <option value="dem">Đêm</option>
-                                </select>
                             </div>
                             <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
                                 <button id="btn-add-otshift" class="btn-primary"><i class='bx bx-plus'></i> Thêm</button>
@@ -461,7 +486,7 @@
 
                                                 <div class="ai-card span-2" style="margin-top: 6px; padding-bottom: 8px;">
                             <h3 style="margin-bottom: 4px;"><i class='bx bx-envelope'></i> Cấu hình module Soạn Email</h3>
-                            <p style="font-size:12.5px; color: var(--text-muted); margin-bottom: 18px;">Áp dụng cho toàn bộ mẫu email ở mục "Soạn Email" — nhận diện Vùng miền để tự gắn CC, và địa chỉ BCC mặc định.</p>
+                            <p style="font-size:12.5px; color: var(--text-muted); margin-bottom: 18px;">Áp dụng cho toàn bộ mẫu email ở mục "Soạn Email" — nhận diện Vùng miền (7 khu vực) để tự gắn CC, và địa chỉ BCC mặc định.</p>
 
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div class="settings-card">
@@ -475,41 +500,22 @@
                                     <input type="email" id="settingsBccEmail" class="soc-input w-full mb-3" placeholder="Đang nạp dữ liệu...">
                                 </div>
 
-                                <div class="settings-card">
-                                    <div class="flex items-center gap-3 mb-4">
-                                        <div class="settings-icon" style="background: var(--accent-glow); color: var(--success);">
-                                            <i class="fa-solid fa-location-dot"></i>
-                                        </div>
-                                        <h3 style="font-weight:700; font-size:15px; color: var(--text-main);">Miền Nam</h3>
-                                    </div>
-                                    <label class="soc-label">Email Miền Nam:</label>
-                                    <input type="text" id="settingsSouthEmail" class="soc-input w-full mb-4" placeholder="Đang nạp dữ liệu...">
-                                    <label class="soc-label">Ký tự nhận diện:</label>
-                                    <input type="text" id="settingsSouthPatterns" class="soc-input w-full font-mono" placeholder="Đang nạp dữ liệu...">
-                                </div>
-
-                                <div class="settings-card">
-                                    <div class="flex items-center gap-3 mb-4">
-                                        <div class="settings-icon" style="background: var(--accent-glow); color: var(--accent);">
-                                            <i class="fa-solid fa-location-dot"></i>
-                                        </div>
-                                        <h3 style="font-weight:700; font-size:15px; color: var(--text-main);">Miền Bắc</h3>
-                                    </div>
-                                    <label class="soc-label">Email Miền Bắc:</label>
-                                    <input type="text" id="settingsNorthEmail" class="soc-input w-full mb-4" placeholder="Đang nạp dữ liệu...">
-                                    <label class="soc-label">Ký tự nhận diện:</label>
-                                    <input type="text" id="settingsNorthPatterns" class="soc-input w-full font-mono" placeholder="Đang nạp dữ liệu...">
-                                </div>
-
-                                <div class="settings-card" style="background: rgba(56,189,248,0.08); border-color: rgba(56,189,248,0.25);">
+                                <div class="settings-card" style="background: var(--accent-glow); border-color: var(--accent-glow);">
                                     <div class="flex items-start gap-3">
                                         <i class="fa-solid fa-lightbulb text-2xl mt-1" style="color: var(--accent);"></i>
                                         <div>
                                             <h4 style="font-weight:700; margin-bottom:8px; color: var(--text-main);">Nhận diện Tự động</h4>
-                                            <p style="font-size:13px; color: var(--text-muted);">Hệ thống sẽ tự động nhận diện vùng miền dựa trên 2 ký tự đầu của số hợp đồng khi soạn email.</p>
+                                            <p style="font-size:13px; color: var(--text-muted);">Hệ thống sẽ tự động nhận diện vùng miền dựa trên 2-3 ký tự đầu của số hợp đồng khi soạn email (7 khu vực bên dưới).</p>
                                         </div>
                                     </div>
                                 </div>
+
+                                <!-- Các thẻ Email theo từng vùng miền (7 khu vực) được
+                                     js/modules/email-tool/settings-panel.js tự động sinh ra tại
+                                     đây, dựa theo regionManager.regionDefs trong
+                                     js/modules/email-tool/region-detector.js. Không cần sửa HTML
+                                     khi thêm/bớt vùng miền. -->
+                                <div id="emailRegionGrid" class="contents"></div>
                             </div>
 
                             <div id="emailSettingsLockNotice" class="mt-5 p-5 bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-xl shadow-sm"></div>
@@ -522,33 +528,38 @@
     </div>
 
         <div id="day-modal" class="modal-overlay">
-        <div class="modal-content ai-card">
+        <div class="modal-content ai-card day-modal-content">
             <div class="modal-header">
                 <h3 id="modal-date-title">Hiệu chỉnh ngày</h3>
                 <button class="btn-close-modal" id="btn-close-modal" type="button"><i class='bx bx-x'></i></button>
             </div>
             <div class="modal-body">
+                <div id="modal-preview" class="modal-preview"></div>
+
                 <div class="input-group">
-                    <label style="width:110px;">Phân loại ca:</label>
+                    <label>Phân loại ca:</label>
                     <select id="modal-shift-type" class="form-select">
                         <option value="chinhchu">Chính chủ</option>
                         <option value="doica">Đổi ca</option>
                         <option value="trucho">Trực hộ</option>
-                        <option value="ot">Tăng cường (OT) – ngày OFF</option>
+                        <option value="ot">Tăng cường (OT) – ngày nghỉ</option>
                     </select>
                 </div>
-                <div class="input-group"><label style="width:110px;">Ca chính:</label><select id="modal-shift" class="form-select"></select></div>
-                <div class="input-group"><label style="width:110px;">Tăng cường (OT):</label><select id="modal-ot" class="form-select"></select></div>
-                <div class="input-group"><label style="width:110px;">Phân công (PCCV):</label><select id="modal-task" class="form-select"></select></div>
+                <div class="input-group"><label>Ca chính:</label><select id="modal-shift" class="form-select"></select></div>
 
-                <div class="input-group" id="modal-trade-group" style="display:none;">
-                    <label style="width:110px;">Người đổi ca:</label>
+                <div class="input-group" id="modal-trade-group">
+                    <label>Người đổi ca:</label>
                     <select id="modal-trade" class="form-select"></select>
                 </div>
-                <div class="input-group" id="modal-help-group" style="display:none;">
-                    <label style="width:110px;">Người trực hộ:</label>
+                <div class="input-group" id="modal-help-group">
+                    <label>Người trực hộ:</label>
                     <select id="modal-help" class="form-select"></select>
                 </div>
+
+                <div class="input-group"><label>Tăng cường (OT):</label><select id="modal-ot" class="form-select"></select></div>
+                <small class="modal-hint">Chọn ca S+, T+, C+... để làm thêm ngoài ca chính. Ngày nghỉ muốn làm nguyên ca (VD S2) thì chọn phân loại "Tăng cường (OT) – ngày nghỉ" rồi chọn ca ở đây.</small>
+
+                <div class="input-group"><label>Phân công (PCCV):</label><select id="modal-task" class="form-select"></select></div>
             </div>
             <div class="modal-footer" style="margin-top: 16px; display:flex; justify-content: space-between; align-items:center; gap:12px;">
                 <button id="btn-delete-day" class="btn-ghost danger" type="button" style="display:none;"><i class='bx bx-trash'></i> Xóa lịch</button>
