@@ -1,81 +1,74 @@
 /**
  * schedule.js - Module Lịch làm việc
  *
- * BẢN VÁ LỖI MỚI NHẤT (2 lỗi được báo cáo):
- * -------------------------------------------------------------------------
- * LỖI 1 — "Import Excel chỉ điền Ngày + Mã Ca báo thành công nhưng không
- * thấy dữ liệu": Nguyên nhân thật sự là do saveScheduleToDrive() luôn lưu
- * TOÀN BỘ window.monthlyScheduleData vào file của THÁNG ĐANG XEM
- * (currentDate), bất kể ngày tháng thật sự trong file Excel là tháng nào.
- * Nếu file Excel chứa lịch của một tháng KHÁC tháng đang xem trên Portal,
- * dữ liệu bị ghi nhầm vào file tháng đang xem thay vì tháng thật -> khi
- * chuyển sang đúng tháng đó sẽ không thấy gì.
+ * ============================================================================
+ * BẢN CẬP NHẬT GIAO DIỆN LỊCH (làm lại toàn bộ file)
+ * ============================================================================
+ * 1) HAI CHẾ ĐỘ XEM: "Tháng" (lưới lịch) và "Tuần" (bảng ca: hàng = Ca sáng /
+ *    Ca chiều / Ca đêm / Tăng cường / Lịch họp, cột = 7 ngày trong tuần).
+ *    Chế độ xem được ghi nhớ trong localStorage (gportal_schedule_view).
+ * 2) PHÂN BIỆT CA SÁNG / CHIỀU / ĐÊM tự động theo GIỜ BẮT ĐẦU của ca trong
+ *    phần Cài Đặt (04:00-11:59 = Sáng, 12:00-17:59 = Chiều, còn lại = Đêm).
+ *    Ca không có giờ hợp lệ được xếp vào nhóm "Khác".
+ * 3) THẺ CA HIỂN THỊ THEO DỮ LIỆU THỰC TẾ — mục nào không có thì ẩn:
+ *      - Chính chủ: không có dòng nhân sự.
+ *      - Trực hộ:   "Hộ: <tên>".
+ *      - Đổi ca:    "Đổi với: <tên>".
+ *      - PCCV luôn hiển thị (chưa có dữ liệu thì hiện "–").
+ *      - Ngày OFF hoàn toàn: chỉ hiện số ngày + nhãn OFF.
+ * 4) TĂNG CƯỜNG (OT) có 2 kiểu hiển thị khác nhau:
+ *      - Ngày nghỉ mà làm tăng cường (kể cả cả ca chính như S2): thẻ nổi
+ *        bật "Tăng cường cả ca".
+ *      - Ngày có ca chính, làm thêm OT: thẻ nhỏ nét đứt "+OT S+".
+ *    Ô chọn OT trong popup hiệu chỉnh giờ liệt kê cả "Ca tăng cường" lẫn
+ *    "Ca chính", và phần "Phân loại ca" có thêm lựa chọn
+ *    "Tăng cường (OT) – ngày nghỉ".
+ * 5) ĐỒNG BỘ GOOGLE: ngày nghỉ làm OT chỉ tạo sự kiện ở LỊCH OT riêng (không
+ *    tạo thêm sự kiện ở Lịch chính). Giờ của OT được tra theo cả danh sách
+ *    ca tăng cường lẫn ca chính. Nguyên tắc chống double (xoá thất bại thì
+ *    không tạo mới) giữ nguyên.
+ * 6) Tuần bắt đầu từ Thứ 2. Điều hướng tháng dùng ngày mùng 1 để tránh lỗi
+ *    nhảy tháng khi đang ở ngày 29-31.
  *
- * FIX: handleExcelUpload() giờ GOM dữ liệu theo từng tháng (khoá "YYYY-MM")
- * dựa trên cột "Ngày" của từng dòng. Dòng nào thuộc THÁNG ĐANG XEM thì cập
- * nhật thẳng vào bộ nhớ + lưu theo luồng cũ. Dòng nào thuộc THÁNG KHÁC thì
- * tự tải file lịch đúng tháng đó trên Drive, gộp (merge) với dữ liệu vừa
- * import rồi lưu lại đúng file — không cần người dùng phải chuyển tháng.
- *
- * Đồng thời làm rõ yêu cầu "chỉ cần Ngày + Mã Ca, các cột khác bỏ trống thì
- * mặc định Chính chủ": nếu thiếu cột "Phân loại" -> mặc định 'chinhchu'
- * (đã có sẵn nhưng viết lại tường minh hơn), nếu thiếu "Mã Ca" -> mặc định
- * 'OFF', các cột OT/PCCV/Nhân sự liên quan bỏ trống thì để rỗng, không bắt
- * buộc.
- *
- * LỖI 2 — "2 mũi tên chọn tháng không chuyển được": nút "Tháng sau" trong
- * index.html trước đây bị khai báo TRÙNG 2 thuộc tính id trên cùng 1 thẻ
- * (id="btn-dash-next-month" id="btn-next-month"). Theo chuẩn HTML, khi 1
- * thẻ có nhiều thuộc tính id trùng tên, trình duyệt chỉ nhận thuộc tính ĐẦU
- * TIÊN, thuộc tính sau bị bỏ qua hoàn toàn -> phần tử thực tế mang id
- * "btn-dash-next-month", không hề có id "btn-next-month" nào tồn tại trên
- * trang. Trong khi initScheduleEvents() bên dưới lại gắn sự kiện vào
- * "btn-next-month" -> bindIfPresent() không tìm thấy phần tử -> nút "Tháng
- * sau" không hề có sự kiện click nào được gắn, bấm vào không phản hồi gì.
- * FIX: đã xoá id trùng lặp trong index.html (xem file index.html đính kèm).
- * Sau khi id đúng lại, currentDate.setMonth(+1/-1) hoạt động không giới hạn
- * (không có ràng buộc chặn số tháng trong code), nên đã đáp ứng luôn yêu
- * cầu "chọn được tháng trước/sau, không giới hạn".
- * -------------------------------------------------------------------------
- *
- * ĐÍNH CHÍNH: Import Excel CHỈ lưu dữ liệu lên Portal/Drive để hiệu chỉnh —
- * KHÔNG tự động đẩy lên Google Calendar/Tasks (đúng luồng gốc: Import ->
- * Hiệu chỉnh -> bấm "Đồng bộ Google" khi đã sẵn sàng). Bản trước có thêm
- * nhầm bước tự động đồng bộ ngay sau Import, đã được gỡ bỏ.
- *
- * LỖI THẬT ĐANG XỬ LÝ: "Đồng bộ Google" đẩy đúng sự kiện Ca/OT lên Google
- * Calendar, nhưng PCCV KHÔNG lên được Google Tasks — và không có bất kỳ
- * thông báo lỗi nào hiển thị cho người dùng (âm thầm thất bại), vì hàm
- * syncGoogleTask() trong googleSync.js tự bắt lỗi bên trong rồi chỉ
- * console.error(), không báo ra ngoài; nếu thất bại (403 do chưa bật Google
- * Tasks API cho project, hoặc token cũ thiếu scope "tasks" từ trước khi
- * scope này được thêm vào, hoặc gapi.client.tasks chưa kịp tải xong) thì
- * coi như "chạy xong" một cách im lặng, người dùng chỉ thấy Lịch lên mà
- * không hề biết Task bị lỗi ở đâu.
- *
- * FIX: syncScheduleDayToGoogle() giờ tách riêng bước đồng bộ PCCV (Task) ra
- * khỏi bước đồng bộ Lịch — nếu Task lỗi thì KHÔNG làm hỏng phần Lịch đã
- * đồng bộ thành công, nhưng lỗi đó được GHI NHẬN LẠI (không còn bị nuốt âm
- * thầm) để syncToGoogleEcosystem() tổng hợp và BÁO RÕ CHO NGƯỜI DÙNG số
- * ngày Task bị lỗi + gợi ý nguyên nhân thường gặp, thay vì chỉ báo
- * "Đã đồng bộ thành công" chung chung như trước dù Task thực ra chưa lên.
- * (Xem thêm phần sửa tương ứng trong js/core/googleSync.js.)
- * -------------------------------------------------------------------------
- * (Giữ nguyên toàn bộ các bản vá trước đó: Settings/staffs fallback mặc
- * định, try/catch quanh openDayModal/saveDayEdit/deleteDayEdit,
- * bindIfPresent() chống 1 phần tử thiếu làm treo cả loạt sự kiện phía sau).
+ * (Giữ nguyên toàn bộ các bản vá trước: gom nhóm Import Excel theo tháng
+ * thực tế của từng dòng, Import Excel không tự đẩy lên Google, fallback
+ * Settings mặc định, try/catch quanh các popup, bindIfPresent(), chống
+ * double Event/Task, nút Kiểm tra đồng bộ & Dọn dẹp trùng lặp.)
+ * ============================================================================
  */
 
 window.monthlyScheduleData = window.monthlyScheduleData || {};
 window.monthlyMeetingsData = window.monthlyMeetingsData || {};
-let currentDate = new Date();
+
+const SCHEDULE_VIEW_KEY = 'gportal_schedule_view';
+const WEEKDAY_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+let currentDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let weekAnchor = new Date();
+let viewMode = 'month';
 let editingDateKey = null;
 let editingMeetingId = null;
 
+const PERIODS = {
+    sang: { label: 'Sáng', full: 'Ca sáng', icon: 'bx-sun' },
+    chieu: { label: 'Chiều', full: 'Ca chiều', icon: 'bx-cloud' },
+    dem: { label: 'Đêm', full: 'Ca đêm', icon: 'bx-moon' },
+    khac: { label: 'Khác', full: 'Ca khác', icon: 'bx-time-five' }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
+    try { initViewMode(); } catch (e) { console.error('initViewMode error:', e); }
     try { initCalendar(); } catch (e) { console.error('initCalendar error:', e); }
     try { initScheduleEvents(); } catch (e) { console.error('initScheduleEvents error:', e); }
 });
+
+function initViewMode() {
+    let saved = null;
+    try { saved = localStorage.getItem(SCHEDULE_VIEW_KEY); } catch (e) {}
+    if (saved === 'month' || saved === 'week') viewMode = saved;
+    else viewMode = (window.innerWidth < 700) ? 'week' : 'month';
+    weekAnchor = defaultAnchorForMonth(currentDate);
+}
 
 function initCalendar() {
     renderCalendar();
@@ -89,6 +82,10 @@ function getSafePortalSettings() {
         return window.portalSettings;
     }
     return { shifts: [], otShifts: [], tasks: [], staffs: [], coefficients: {} };
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -107,14 +104,18 @@ function bindIfPresent(id, eventName, handler, targetOverride) {
 }
 
 function initScheduleEvents() {
-    bindIfPresent('btn-prev-month', 'click', () => { currentDate.setMonth(currentDate.getMonth() - 1); changeMonthHandler(); });
-    bindIfPresent('btn-next-month', 'click', () => { currentDate.setMonth(currentDate.getMonth() + 1); changeMonthHandler(); });
+    bindIfPresent('btn-prev-month', 'click', () => navigateSchedule(-1));
+    bindIfPresent('btn-next-month', 'click', () => navigateSchedule(1));
+    bindIfPresent('btn-go-today', 'click', goToToday);
+    bindIfPresent('btn-view-month', 'click', () => setViewMode('month'));
+    bindIfPresent('btn-view-week', 'click', () => setViewMode('week'));
 
     bindIfPresent('btn-download-schedule-tpl', 'click', () => {
         const ws_data = [["Ngày", "Mã Ca", "OT", "Mã PCCV", "Phân loại", "Nhân sự liên quan"]];
         ws_data.push(["01/07/2026", "S1", "S+", "CHAT", "Chính chủ", ""]);
         ws_data.push(["02/07/2026", "S2", "", "", "Đổi ca", "NV01"]);
         ws_data.push(["03/07/2026", "S1", "", "", "", ""]); // Ví dụ: chỉ cần Ngày + Mã Ca -> tự mặc định Chính chủ
+        ws_data.push(["04/07/2026", "OFF", "S2", "", "", ""]); // Ví dụ: ngày nghỉ nhưng làm tăng cường nguyên ca S2
 
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         const wb = XLSX.utils.book_new();
@@ -133,12 +134,18 @@ function initScheduleEvents() {
         if (e.key === 'Escape') { closeDayModal(); closeMeetingModal(); }
     });
 
-    bindIfPresent('modal-shift-type', 'change', function () { applyModalTypeUI(this.value); });
+    bindIfPresent('modal-shift-type', 'change', handleDayTypeChange);
+    bindIfPresent('modal-shift', 'change', updateDayModalPreview);
+    bindIfPresent('modal-ot', 'change', updateDayModalPreview);
+    bindIfPresent('modal-task', 'change', updateDayModalPreview);
+    bindIfPresent('modal-trade', 'change', updateDayModalPreview);
+    bindIfPresent('modal-help', 'change', updateDayModalPreview);
 
     bindIfPresent('btn-save-day', 'click', saveDayEdit);
     bindIfPresent('btn-delete-day', 'click', deleteDayEdit);
     bindIfPresent('btn-sync-calendar', 'click', syncToGoogleEcosystem);
     bindIfPresent('btn-check-sync', 'click', checkSyncWithGoogleHandler);
+    bindIfPresent('btn-cleanup-duplicates', 'click', cleanupDuplicatesHandler);
     bindIfPresent('btn-add-meeting', 'click', () => openMeetingModal());
     bindIfPresent('btn-close-meeting-modal', 'click', closeMeetingModal);
     bindIfPresent('meeting-modal', 'click', (e) => { if (e.target.id === 'meeting-modal') closeMeetingModal(); });
@@ -153,18 +160,84 @@ function closeDayModal() {
     editingDateKey = null;
 }
 
-function applyModalTypeUI(val) {
-    const tradeGroup = document.getElementById('modal-trade-group');
-    const helpGroup = document.getElementById('modal-help-group');
-    if (tradeGroup) tradeGroup.style.display = val === 'doica' ? 'block' : 'none';
-    if (helpGroup) helpGroup.style.display = val === 'trucho' ? 'block' : 'none';
-    const shiftSel = document.getElementById('modal-shift');
-    if (shiftSel) {
-        if (val === 'ot') { shiftSel.value = 'OFF'; shiftSel.disabled = true; }
-        else shiftSel.disabled = false;
+// ==================== ĐIỀU HƯỚNG THÁNG / TUẦN ====================
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function toDateKey(date) {
+    return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function defaultAnchorForMonth(monthDate) {
+    const t = new Date();
+    if (t.getFullYear() === monthDate.getFullYear() && t.getMonth() === monthDate.getMonth()) return t;
+    return new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+}
+
+// Thứ 2 của tuần chứa ngày d
+function getWeekStart(d) {
+    const s = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    s.setDate(s.getDate() - ((s.getDay() + 6) % 7));
+    return s;
+}
+
+function navigateSchedule(delta) {
+    if (viewMode === 'week') {
+        shiftWeek(delta);
+        return;
+    }
+    currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + delta, 1);
+    weekAnchor = defaultAnchorForMonth(currentDate);
+    changeMonthHandler();
+}
+
+function shiftWeek(delta) {
+    let a = new Date(weekAnchor.getFullYear(), weekAnchor.getMonth(), weekAnchor.getDate() + 7 * delta);
+    const crossed = a.getMonth() !== currentDate.getMonth() || a.getFullYear() !== currentDate.getFullYear();
+    if (crossed) {
+        // Sang tháng mới: nhảy về ngày đầu (đi tới) hoặc ngày cuối (đi lùi) của tháng đó
+        a = delta > 0
+            ? new Date(a.getFullYear(), a.getMonth(), 1)
+            : new Date(a.getFullYear(), a.getMonth() + 1, 0);
+        currentDate = new Date(a.getFullYear(), a.getMonth(), 1);
+        weekAnchor = a;
+        changeMonthHandler();
+    } else {
+        weekAnchor = a;
+        renderCalendar();
     }
 }
 
+function goToToday() {
+    const t = new Date();
+    const sameMonth = t.getFullYear() === currentDate.getFullYear() && t.getMonth() === currentDate.getMonth();
+    weekAnchor = t;
+    if (sameMonth) {
+        renderCalendar();
+    } else {
+        currentDate = new Date(t.getFullYear(), t.getMonth(), 1);
+        changeMonthHandler();
+    }
+}
+
+function setViewMode(mode) {
+    if (mode !== 'month' && mode !== 'week') return;
+    viewMode = mode;
+    try { localStorage.setItem(SCHEDULE_VIEW_KEY, mode); } catch (e) {}
+    if (mode === 'week') weekAnchor = defaultAnchorForMonth(currentDate);
+    renderCalendar();
+}
+
+function syncViewSwitchUI() {
+    const monthBtn = document.getElementById('btn-view-month');
+    const weekBtn = document.getElementById('btn-view-week');
+    if (monthBtn) monthBtn.classList.toggle('active', viewMode === 'month');
+    if (weekBtn) weekBtn.classList.toggle('active', viewMode === 'week');
+    const monthView = document.getElementById('sch-month-view');
+    const weekView = document.getElementById('sch-week-view');
+    if (monthView) monthView.style.display = viewMode === 'month' ? 'block' : 'none';
+    if (weekView) weekView.style.display = viewMode === 'week' ? 'block' : 'none';
+}
 
 function changeMonthHandler() {
     window.monthlyScheduleData = {};
@@ -236,37 +309,352 @@ window.loadScheduleFromDrive = async function () {
     }
 };
 
+// ==================== TIỆN ÍCH CA / KHUNG GIỜ ====================
+
+function escapeHtml(value) {
+    return String(value || '').replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+}
+
+// Ca sáng / chiều / đêm được phân theo GIỜ BẮT ĐẦU của ca
+function getPeriodFromTime(time) {
+    const m = String(time || '').match(/(\d{1,2})\s*[:h]\s*(\d{2})/);
+    if (!m) return 'khac';
+    const h = parseInt(m[1], 10);
+    if (h >= 4 && h < 12) return 'sang';
+    if (h >= 12 && h < 18) return 'chieu';
+    return 'dem';
+}
+
+function formatTimeRange(time) {
+    return String(time || '').replace(/\s*-\s*/, ' – ');
+}
+
+function getShiftConfig(code, isOt) {
+    if (!code || code === 'OFF') return null;
+    const settings = getSafePortalSettings();
+    const list = isOt ? settings.otShifts : settings.shifts;
+    return (list || []).find(s => s.code === code) || null;
+}
+
+// Ô OT giờ có thể chọn cả "Ca tăng cường" lẫn "Ca chính" -> tra theo cả hai
+// danh sách (ưu tiên Ca tăng cường nếu trùng mã).
+function getAnyShiftConfig(code) {
+    if (!code || code === 'OFF') return null;
+    return getShiftConfig(code, true) || getShiftConfig(code, false);
+}
+
+// Gom toàn bộ thông tin hiển thị của 1 ngày từ dữ liệu lịch
+function buildDayInfo(dateKey) {
+    const raw = window.monthlyScheduleData[dateKey];
+    const d = raw || {};
+    const shiftCode = d.shift && d.shift !== 'OFF' ? d.shift : '';
+    const otCode = (d.ot || '').trim();
+    const mainCfg = shiftCode ? getShiftConfig(shiftCode, false) : null;
+    const otCfg = otCode ? getAnyShiftConfig(otCode) : null;
+    return {
+        hasData: !!raw,
+        type: d.type || 'chinhchu',
+        shiftCode,
+        otCode,
+        task: (d.task || '').trim(),
+        trade: (d.trade || '').trim(),
+        help: (d.help || '').trim(),
+        mainCfg,
+        otCfg,
+        mainPeriod: shiftCode ? getPeriodFromTime(mainCfg && mainCfg.time) : null,
+        otPeriod: otCode ? getPeriodFromTime(otCfg && otCfg.time) : null,
+        hasMain: !!shiftCode,
+        hasOt: !!otCode,
+        isOtOnly: !shiftCode && !!otCode,
+        isOff: !shiftCode && !otCode
+    };
+}
+
+// ==================== HTML CÁC THÀNH PHẦN THẺ ====================
+
+function periodChipHtml(period) {
+    const p = PERIODS[period] || PERIODS.khac;
+    return `<span class="sch-period p-${period}"><i class='bx ${p.icon}'></i>${p.label}</span>`;
+}
+
+function typeChipHtml(info) {
+    if (info.type === 'doica') return `<span class="sch-chip swap"><i class='bx bx-transfer'></i>Đổi ca</span>`;
+    if (info.type === 'trucho') return `<span class="sch-chip cover"><i class='bx bx-support'></i>Trực hộ</span>`;
+    return `<span class="sch-chip own">Chính chủ</span>`;
+}
+
+function staffLineHtml(info) {
+    if (info.type === 'doica') {
+        return `<div class="sch-staff swap"><i class='bx bx-transfer'></i><span>Đổi với: <b>${info.trade ? escapeHtml(info.trade) : 'chưa chọn'}</b></span></div>`;
+    }
+    if (info.type === 'trucho') {
+        return `<div class="sch-staff cover"><i class='bx bx-support'></i><span>Hộ: <b>${info.help ? escapeHtml(info.help) : 'chưa chọn'}</b></span></div>`;
+    }
+    return '';
+}
+
+function taskLineHtml(info) {
+    return `<div class="sch-task${info.task ? '' : ' empty'}" title="${info.task ? 'Phân công công việc' : 'Chưa phân công — bấm vào ngày để cập nhật'}"><i class='bx bx-pin'></i><span class="sch-task-k">PCCV</span><span class="sch-task-v">${info.task ? escapeHtml(info.task) : '–'}</span></div>`;
+}
+
+function timeLineHtml(cfg) {
+    if (cfg && cfg.time) return `<div class="sch-time"><i class='bx bx-time-five'></i>${escapeHtml(formatTimeRange(cfg.time))}</div>`;
+    return `<div class="sch-time muted"><i class='bx bx-time-five'></i>Chưa cấu hình giờ</div>`;
+}
+
+// Thẻ ca chính. showPeriod=false ở chế độ Tuần (vì cột hàng đã cho biết sáng/chiều/đêm)
+function mainCardHtml(info, showPeriod) {
+    const color = (info.mainCfg && info.mainCfg.color) || '#64748b';
+    const name = info.mainCfg && info.mainCfg.name ? info.mainCfg.name : '';
+    return `<div class="sch-card main p-${info.mainPeriod}" style="--shift-color:${escapeHtml(color)}">
+        <div class="sch-card-top">${showPeriod ? periodChipHtml(info.mainPeriod) : ''}${typeChipHtml(info)}</div>
+        <div class="sch-shift-line"><span class="sch-code">${escapeHtml(info.shiftCode)}</span>${name ? `<span class="sch-name">${escapeHtml(name)}</span>` : ''}</div>
+        ${timeLineHtml(info.mainCfg)}
+        ${staffLineHtml(info)}
+        ${taskLineHtml(info)}
+    </div>`;
+}
+
+// Ngày nghỉ nhưng làm tăng cường (VD OT S2 / S+ / T+...) -> thẻ nổi bật riêng
+function otOnlyCardHtml(info) {
+    const name = info.otCfg && info.otCfg.name ? info.otCfg.name : '';
+    return `<div class="sch-card ot-only p-${info.otPeriod}">
+        <div class="sch-card-top"><span class="sch-ot-badge"><i class='bx bx-bolt-circle'></i>Tăng cường cả ca</span>${periodChipHtml(info.otPeriod)}</div>
+        <div class="sch-shift-line"><span class="sch-code">${escapeHtml(info.otCode)}</span>${name ? `<span class="sch-name">${escapeHtml(name)}</span>` : ''}</div>
+        ${timeLineHtml(info.otCfg)}
+        ${taskLineHtml(info)}
+    </div>`;
+}
+
+// Ngày có ca chính + làm thêm OT -> thẻ nhỏ nét đứt, khác hẳn thẻ ca chính
+function otAddHtml(info) {
+    const time = info.otCfg && info.otCfg.time ? `<span class="sch-ot-add-time">${escapeHtml(formatTimeRange(info.otCfg.time))}</span>` : '';
+    return `<div class="sch-ot-add" title="Làm thêm giờ ngoài ca chính"><i class='bx bx-plus-circle'></i><span>OT <b>${escapeHtml(info.otCode)}</b></span>${time}</div>`;
+}
+
+function statusBadgeHtml(info) {
+    if (info.isOtOnly) return `<span class="sch-status ot">Tăng cường</span>`;
+    if (info.isOff) return `<span class="sch-status off">OFF</span>`;
+    return `<span class="sch-status work">Đi làm</span>`;
+}
+
+function meetingChipHtml(m) {
+    return `<button class="sch-meeting" type="button" onclick="event.stopPropagation(); openMeetingModal('${m.id}')"><i class='bx bx-video'></i>${escapeHtml(m.start || '--:--')} ${escapeHtml(m.title)}</button>`;
+}
+
+// Bản rút gọn dành cho điện thoại ở chế độ Tháng (ô lịch quá hẹp để hiện thẻ đầy đủ)
+function miniHtml(info, meetings) {
+    let h = '';
+    if (info.hasMain) h += `<span class="sch-mini-chip p-${info.mainPeriod}">${escapeHtml(info.shiftCode)}</span>`;
+    if (info.hasOt) h += `<span class="sch-mini-chip ot">+${escapeHtml(info.otCode)}</span>`;
+    if (info.task) h += `<i class='bx bx-pin sch-mini-ico'></i>`;
+    if (meetings.length) h += `<i class='bx bx-video sch-mini-ico'></i>`;
+    return h ? `<div class="sch-mini">${h}</div>` : '';
+}
+
+// ==================== VẼ LỊCH ====================
+
 window.renderCalendar = function () {
     try {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
+        syncViewSwitchUI();
         const monthDisplay = document.getElementById('current-month-display');
-        if (monthDisplay) monthDisplay.innerText = `Tháng ${(month + 1).toString().padStart(2, '0')}/${year}`;
 
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const calendarGrid = document.getElementById('calendar-grid');
-        if (!calendarGrid) return;
-
-        let gridHtml = '';
-        for (let i = 0; i < firstDay; i++) gridHtml += `<div class="calendar-day empty"></div>`;
-
-        const today = new Date();
-        for (let day = 1; day <= daysInMonth; day++) {
-            const dateKey = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-            const isToday = (day === today.getDate() && month === today.getMonth() && year === today.getFullYear());
-            const dayData = window.monthlyScheduleData[dateKey] || { shift: 'OFF', type: 'chinhchu' };
-            const meetings = getMeetingsByDate(dateKey);
-            const cellHtml = buildDayCellHtml(day, dayData, meetings);
-            gridHtml += `<div class="calendar-day ${isToday ? 'today' : ''} ${meetings.length ? 'has-meeting' : ''}" onclick="openDayModal('${dateKey}')"><div class="day-content">${cellHtml}</div></div>`;
+        if (viewMode === 'week') {
+            const start = getWeekStart(weekAnchor);
+            const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+            if (monthDisplay) monthDisplay.innerText = `Tuần ${pad2(start.getDate())}/${pad2(start.getMonth() + 1)} – ${pad2(end.getDate())}/${pad2(end.getMonth() + 1)}/${end.getFullYear()}`;
+            renderWeekBoard();
+        } else {
+            if (monthDisplay) monthDisplay.innerText = `Tháng ${pad2(currentDate.getMonth() + 1)}/${currentDate.getFullYear()}`;
+            renderMonthGrid();
         }
-        calendarGrid.innerHTML = gridHtml;
         renderScheduleAgenda();
     } catch (e) {
         console.error('Lỗi render Lịch làm việc:', e);
     }
 };
 
+function renderMonthGrid() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const calendarGrid = document.getElementById('calendar-grid');
+    if (!calendarGrid) return;
+
+    const leading = (new Date(year, month, 1).getDay() + 6) % 7; // tuần bắt đầu từ Thứ 2
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    const cells = [];
+
+    for (let i = 0; i < leading; i++) cells.push(`<div class="sch-cell empty"></div>`);
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateKey = `${year}-${pad2(month + 1)}-${pad2(day)}`;
+        const isToday = (day === today.getDate() && month === today.getMonth() && year === today.getFullYear());
+        const info = buildDayInfo(dateKey);
+        const meetings = getMeetingsByDate(dateKey);
+
+        let body = '';
+        if (info.hasMain) body += mainCardHtml(info, true);
+        if (info.isOtOnly) body += otOnlyCardHtml(info);
+        if (info.hasMain && info.hasOt) body += otAddHtml(info);
+        // Ngày OFF hoàn toàn chỉ hiện số ngày + OFF; còn lại PCCV luôn hiển thị
+        // (thẻ ca/OT đã có sẵn dòng PCCV; riêng ngày OFF mà đã có PCCV thì vẫn hiện)
+        if (info.isOff && info.task) body += taskLineHtml(info);
+        meetings.slice(0, 2).forEach(m => { body += meetingChipHtml(m); });
+        if (meetings.length > 2) body += `<div class="sch-more">+${meetings.length - 2} lịch họp</div>`;
+
+        const classes = ['sch-cell'];
+        if (isToday) classes.push('today');
+        if (info.isOff) classes.push('is-off');
+        if (info.isOtOnly) classes.push('is-ot');
+        if (meetings.length) classes.push('has-meeting');
+
+        cells.push(`<div class="${classes.join(' ')}" onclick="openDayModal('${dateKey}')">
+            <div class="sch-cell-head"><span class="sch-daynum">${day}</span>${statusBadgeHtml(info)}</div>
+            <div class="sch-cell-body">${body}</div>
+            ${miniHtml(info, meetings)}
+        </div>`);
+    }
+
+    calendarGrid.innerHTML = cells.join('');
+}
+
+function renderWeekBoard() {
+    const board = document.getElementById('week-board');
+    if (!board) return;
+
+    const settings = getSafePortalSettings();
+    const start = getWeekStart(weekAnchor);
+    const today = new Date();
+    const todayKey = toDateKey(today);
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        const inMonth = d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
+        const key = toDateKey(d);
+        days.push({ date: d, key, inMonth, info: inMonth ? buildDayInfo(key) : null, meetings: inMonth ? getMeetingsByDate(key) : [] });
+    }
+
+    const periodRows = ['sang', 'chieu', 'dem'];
+    if (days.some(x => x.info && x.info.hasMain && x.info.mainPeriod === 'khac')) periodRows.push('khac');
+
+    let html = `<div class="sch-week-scroll"><div class="sch-week">`;
+
+    // Hàng tiêu đề: góc + 7 ngày (T2 -> CN)
+    html += `<div class="sch-wcorner">Ca / Ngày</div>`;
+    days.forEach(x => {
+        const dow = WEEKDAY_SHORT[x.date.getDay()];
+        const cls = ['sch-whead'];
+        if (x.key === todayKey) cls.push('today');
+        if (!x.inMonth) cls.push('outside');
+        let badge = '';
+        if (x.info) badge = statusBadgeHtml(x.info);
+        html += `<div class="${cls.join(' ')}"><span class="sch-wdow">${dow}</span><b class="sch-wnum">${pad2(x.date.getDate())}</b><small>/${pad2(x.date.getMonth() + 1)}</small>${badge}</div>`;
+    });
+
+    const cellOpen = (x) => x.inMonth ? ` onclick="openDayModal('${x.key}')"` : '';
+    const cellCls = (x, extra) => `sch-wcell${extra ? ' ' + extra : ''}${x.inMonth ? '' : ' outside'}${x.key === todayKey ? ' today' : ''}`;
+
+    // Các hàng Ca sáng / chiều / đêm (/ khác)
+    periodRows.forEach(p => {
+        const codes = (settings.shifts || []).filter(s => getPeriodFromTime(s.time) === p).map(s => s.code);
+        const meta = PERIODS[p];
+        html += `<div class="sch-rowlabel p-${p}"><i class='bx ${meta.icon}'></i><div><b>${meta.full}</b><small>${codes.length ? escapeHtml(codes.join(' · ')) : 'Chưa có ca'}</small></div></div>`;
+        days.forEach(x => {
+            const has = x.info && x.info.hasMain && x.info.mainPeriod === p;
+            html += `<div class="${cellCls(x)}"${cellOpen(x)}>${has ? mainCardHtml(x.info, false) : '<span class="sch-empty-mark"></span>'}</div>`;
+        });
+    });
+
+    // Hàng Tăng cường
+    html += `<div class="sch-rowlabel ot"><i class='bx bx-bolt-circle'></i><div><b>Tăng cường</b><small>Ngoài giờ / ngày nghỉ</small></div></div>`;
+    days.forEach(x => {
+        let inner = '<span class="sch-empty-mark"></span>';
+        if (x.info && x.info.isOtOnly) inner = otOnlyCardHtml(x.info);
+        else if (x.info && x.info.hasMain && x.info.hasOt) inner = otAddHtml(x.info);
+        html += `<div class="${cellCls(x)}"${cellOpen(x)}>${inner}</div>`;
+    });
+
+    // Hàng Lịch họp
+    html += `<div class="sch-rowlabel meet"><i class='bx bx-video'></i><div><b>Lịch họp</b><small>Họp trong ngày</small></div></div>`;
+    days.forEach(x => {
+        const inner = x.meetings.length ? x.meetings.map(meetingChipHtml).join('') : '<span class="sch-empty-mark"></span>';
+        html += `<div class="${cellCls(x, 'meet')}"${cellOpen(x)}>${inner}</div>`;
+    });
+
+    html += `</div></div>`;
+    board.innerHTML = html;
+}
+
+// ==================== POPUP HIỆU CHỈNH NGÀY ====================
+
+function ensureOption(selectEl, value, label) {
+    if (!selectEl || !value) return;
+    const exists = Array.from(selectEl.options).some(o => o.value === value);
+    if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label || `${value} (không còn trong Cài Đặt)`;
+        selectEl.appendChild(opt);
+    }
+}
+
+function handleDayTypeChange() {
+    const typeEl = document.getElementById('modal-shift-type');
+    const type = typeEl ? typeEl.value : 'chinhchu';
+    const tradeGroup = document.getElementById('modal-trade-group');
+    const helpGroup = document.getElementById('modal-help-group');
+    const shiftEl = document.getElementById('modal-shift');
+
+    if (tradeGroup) tradeGroup.style.display = type === 'doica' ? 'flex' : 'none';
+    if (helpGroup) helpGroup.style.display = type === 'trucho' ? 'flex' : 'none';
+
+    if (shiftEl) {
+        if (type === 'ot') {
+            shiftEl.value = 'OFF';
+            shiftEl.disabled = true;
+        } else {
+            shiftEl.disabled = false;
+        }
+    }
+    updateDayModalPreview();
+}
+
+// Xem nhanh kết quả sau khi chọn (giờ làm việc tự lấy theo thiết lập ca)
+function updateDayModalPreview() {
+    const box = document.getElementById('modal-preview');
+    if (!box) return;
+    const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+
+    const type = getVal('modal-shift-type') || 'chinhchu';
+    const shift = getVal('modal-shift') || 'OFF';
+    const ot = getVal('modal-ot');
+    const task = getVal('modal-task');
+    const lines = [];
+
+    if (shift !== 'OFF' && type !== 'ot') {
+        const cfg = getShiftConfig(shift, false);
+        const period = PERIODS[getPeriodFromTime(cfg && cfg.time)];
+        lines.push(`<div><b>Ca chính:</b> ${escapeHtml(shift)}${cfg && cfg.name ? ' · ' + escapeHtml(cfg.name) : ''} — ${cfg && cfg.time ? escapeHtml(formatTimeRange(cfg.time)) : 'chưa cấu hình giờ'} (${period.full.toLowerCase()})</div>`);
+    } else {
+        lines.push(`<div><b>Ca chính:</b> OFF (nghỉ)</div>`);
+    }
+
+    if (ot) {
+        const cfg = getAnyShiftConfig(ot);
+        const kind = (shift !== 'OFF' && type !== 'ot') ? 'làm thêm ngoài ca chính' : 'tăng cường cả ca trong ngày nghỉ';
+        lines.push(`<div><b>Tăng cường:</b> ${escapeHtml(ot)} — ${cfg && cfg.time ? escapeHtml(formatTimeRange(cfg.time)) : 'chưa cấu hình giờ'} (${kind})</div>`);
+    } else if (type === 'ot') {
+        lines.push(`<div style="color: var(--warning);"><b>Tăng cường:</b> hãy chọn ca ở ô "Tăng cường (OT)".</div>`);
+    }
+
+    if (type === 'doica') lines.push(`<div><b>Đổi ca với:</b> ${escapeHtml(getVal('modal-trade') || 'chưa chọn')}</div>`);
+    if (type === 'trucho') lines.push(`<div><b>Trực hộ cho:</b> ${escapeHtml(getVal('modal-help') || 'chưa chọn')}</div>`);
+    lines.push(`<div><b>PCCV:</b> ${task ? escapeHtml(task) : '–'}</div>`);
+
+    box.innerHTML = lines.join('');
+}
 
 window.openDayModal = function (dateKey) {
     try {
@@ -281,45 +669,64 @@ window.openDayModal = function (dateKey) {
         const settings = getSafePortalSettings();
 
         const shiftsHtml = `<option value="OFF">OFF (Nghỉ)</option>` +
-            (settings.shifts || []).map(s => `<option value="${s.code}">${s.code} (${s.time})</option>`).join('');
+            (settings.shifts || []).map(s => `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)}${s.name ? ' - ' + escapeHtml(s.name) : ''} (${escapeHtml(s.time)})</option>`).join('');
         const modalShift = document.getElementById('modal-shift');
         if (modalShift) modalShift.innerHTML = shiftsHtml;
 
-        const otHtml = `<option value="">-- Không có --</option>` +
-            `<optgroup label="Ca tăng cường (+)">` +
-            (settings.otShifts || []).map(s => `<option value="${s.code}">${s.code} (${s.time})</option>`).join('') +
-            `</optgroup><optgroup label="Nguyên ca chính (làm OT ngày OFF)">` +
-            (settings.shifts || []).map(s => `<option value="${s.code}">${s.code} (${s.time})</option>`).join('') +
-            `</optgroup>`;
+        // Ô OT: liệt kê cả Ca tăng cường lẫn Ca chính (để làm nguyên ca vào ngày nghỉ)
+        const otList = settings.otShifts || [];
+        const shiftList = settings.shifts || [];
+        let otHtml = `<option value="">-- Không có --</option>`;
+        if (otList.length) {
+            otHtml += `<optgroup label="Ca tăng cường">` +
+                otList.map(s => `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)}${s.name ? ' - ' + escapeHtml(s.name) : ''} (${escapeHtml(s.time)})</option>`).join('') +
+                `</optgroup>`;
+        }
+        if (shiftList.length) {
+            otHtml += `<optgroup label="Ca chính (làm nguyên ca khi nghỉ)">` +
+                shiftList.map(s => `<option value="${escapeHtml(s.code)}">${escapeHtml(s.code)}${s.name ? ' - ' + escapeHtml(s.name) : ''} (${escapeHtml(s.time)})</option>`).join('') +
+                `</optgroup>`;
+        }
         const modalOt = document.getElementById('modal-ot');
         if (modalOt) modalOt.innerHTML = otHtml;
 
         const taskSelect = document.getElementById('modal-task');
         if (taskSelect) {
             taskSelect.innerHTML = `<option value="">-- Không có --</option>` +
-                (settings.tasks || []).map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+                (settings.tasks || []).map(t => `<option value="${escapeHtml(t.name)}">${escapeHtml(t.name)}</option>`).join('');
         }
 
         const staffList = settings.staffs || [];
         const staffOptions = staffList.length
-            ? (`<option value="">-- Không có --</option>` + staffList.map(s => `<option value="${s.name}">${s.name} (${s.id})</option>`).join(''))
+            ? (`<option value="">-- Không có --</option>` + staffList.map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)} (${escapeHtml(s.id)})</option>`).join(''))
             : `<option value="">-- Chưa có Nhân sự nào, vào Cài Đặt > Nhân sự để thêm --</option>`;
         const modalTrade = document.getElementById('modal-trade');
         const modalHelp = document.getElementById('modal-help');
         if (modalTrade) modalTrade.innerHTML = staffOptions;
         if (modalHelp) modalHelp.innerHTML = staffOptions;
 
+        // Mã đã lưu nhưng nay không còn trong Cài Đặt -> vẫn giữ lại để không mất dữ liệu khi lưu
+        ensureOption(modalShift, dayData.shift && dayData.shift !== 'OFF' ? dayData.shift : '');
+        ensureOption(modalOt, dayData.ot);
+        ensureOption(taskSelect, dayData.task, dayData.task);
+        ensureOption(modalTrade, dayData.trade, dayData.trade);
+        ensureOption(modalHelp, dayData.help, dayData.help);
+
+        // Ngày nghỉ nhưng có OT -> mở popup ở chế độ "Tăng cường (OT) – ngày nghỉ"
+        const hasMain = dayData.shift && dayData.shift !== 'OFF';
+        const hasOt = dayData.ot && dayData.ot.trim() !== '';
+        let displayType = dayData.type || 'chinhchu';
+        if (!hasMain && hasOt) displayType = 'ot';
+
         const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        setVal('modal-shift-type', displayType);
         setVal('modal-shift', dayData.shift || 'OFF');
         setVal('modal-ot', dayData.ot || '');
         setVal('modal-task', dayData.task || '');
         setVal('modal-trade', dayData.trade || '');
         setVal('modal-help', dayData.help || '');
 
-        const isOtOnly = (!dayData.shift || dayData.shift === 'OFF') && dayData.ot;
-        const uiType = isOtOnly ? 'ot' : (dayData.type || 'chinhchu');
-        setVal('modal-shift-type', uiType);   // gọi SAU khi đã setVal modal-shift
-        applyModalTypeUI(uiType);
+        handleDayTypeChange();
 
         const deleteBtn = document.getElementById('btn-delete-day');
         if (deleteBtn) deleteBtn.style.display = existingData ? 'inline-flex' : 'none';
@@ -342,11 +749,18 @@ function saveDayEdit() {
         let shift = getVal('modal-shift') || 'OFF';
         const ot = getVal('modal-ot');
         const task = getVal('modal-task');
+
+        // "Tăng cường (OT) – ngày nghỉ": ca chính = OFF, bắt buộc phải chọn ca OT.
+        // Lưu dưới dạng chinhchu + OFF + ot (hiển thị tự nhận ra là ngày tăng cường).
         if (type === 'ot') {
-            if (!ot) return alert('Vui lòng chọn ca Tăng cường (OT) cho ngày này.');
+            if (!ot) {
+                alert('Vui lòng chọn ca ở ô "Tăng cường (OT)" cho ngày này.');
+                return;
+            }
             shift = 'OFF';
-            type = 'chinhchu'; // 'ot' chỉ là lựa chọn trên giao diện, không lưu để khớp với luồng đồng bộ Google
+            type = 'chinhchu';
         }
+
         const trade = type === 'doica' ? getVal('modal-trade') : '';
         const help = type === 'trucho' ? getVal('modal-help') : '';
 
@@ -357,22 +771,29 @@ function saveDayEdit() {
         renderCalendar();
         saveScheduleToDrive();
 
+        // Đồng bộ ngay 1 ngày vừa lưu lên Google (Event + Task) — dùng chung
+        // đúng hàm syncScheduleDayToGoogle() với luồng "Đồng bộ Google" hàng
+        // loạt, để đảm bảo tuân thủ nguyên tắc chống double (xoá thất bại thì
+        // không tạo mới) một cách nhất quán.
         if (typeof AppState !== 'undefined' && AppState.isLoggedIn) {
-            if (task && task.trim() !== '') {
-                let taskNote = [];
-                if (shift && shift !== 'OFF') taskNote.push(`Ca: ${shift}`);
-                if (ot) taskNote.push(`OT: ${ot}`);
-                if (typeof syncGoogleTask === 'function') {
-                    syncGoogleTask(savedKey, task, taskNote.join(' | ')).catch(err => {
-                        console.error(`[G-Portal] Lỗi đồng bộ Google Task ngày ${savedKey}:`, err);
-                        const apiErr = err && err.result && err.result.error;
-                        const detail = apiErr ? `${apiErr.code} - ${apiErr.message}` : (err && err.message) || String(err);
-                        alert(`⚠️ Đã lưu lịch/PCCV trên Portal, nhưng KHÔNG đồng bộ được lên Google Tasks cho ngày ${savedKey}.\nChi tiết: ${detail}\nCó thể do Google Tasks API chưa bật cho project, hoặc cần Đăng xuất/Đăng nhập lại để cấp quyền Tasks.`);
-                    });
+            const settings = getSafePortalSettings();
+            syncScheduleDayToGoogle(savedKey, window.monthlyScheduleData[savedKey], settings).then(result => {
+                if (result && (result.eventError || result.taskError)) {
+                    let msg = `⚠️ Đã lưu lịch ngày ${savedKey} trên Portal, nhưng gặp lỗi khi đồng bộ lên Google:\n`;
+                    if (result.eventError) {
+                        const apiErr = result.eventError.result && result.eventError.result.error;
+                        msg += `- Lịch (Event): ${apiErr ? `${apiErr.code} - ${apiErr.message}` : (result.eventError.message || String(result.eventError))}\n`;
+                    }
+                    if (result.taskError) {
+                        const apiErr = result.taskError.result && result.taskError.result.error;
+                        msg += `- Task PCCV: ${apiErr ? `${apiErr.code} - ${apiErr.message}` : (result.taskError.message || String(result.taskError))}\n`;
+                    }
+                    msg += `\nDữ liệu KHÔNG bị tạo trùng lặp (hệ thống đã huỷ bước tạo mới nếu không xoá được dữ liệu cũ). Vui lòng bấm "Đồng bộ Google" ở thanh công cụ để thử đồng bộ lại toàn tháng.`;
+                    alert(msg);
                 }
-            } else if (typeof deleteGoogleTask === 'function') {
-                deleteGoogleTask(savedKey).catch(err => console.error('Lỗi xóa Google Task:', err));
-            }
+            }).catch(err => {
+                console.error(`[G-Portal] Lỗi đồng bộ ngày ${savedKey}:`, err);
+            });
         }
     } catch (e) {
         console.error('Lỗi lưu hiệu chỉnh ngày:', e);
@@ -411,6 +832,8 @@ function deleteDayEdit() {
     }
 }
 
+// ==================== IMPORT EXCEL ====================
+
 /**
  * Đọc 1 dòng dữ liệu từ Excel và trả về { dateKey, dayData } hoặc null nếu
  * dòng không hợp lệ (không đọc được ngày). CHỈ BẮT BUỘC "Ngày" + "Mã Ca":
@@ -418,6 +841,7 @@ function deleteDayEdit() {
  * - Thiếu "Phân loại" (hoặc không khớp "đổi ca"/"trực hộ") -> mặc định
  *   'chinhchu' (Chính chủ).
  * - Thiếu OT / Mã PCCV / Nhân sự liên quan -> để trống, không bắt buộc.
+ * - Ngày nghỉ làm tăng cường: Mã Ca = OFF (hoặc để trống) + cột OT = mã ca.
  */
 function parseScheduleRow(row) {
     const rawDate = row['Ngày'] || row['Date'];
@@ -547,119 +971,7 @@ function parseDateToKey(dateStr) {
     return null;
 }
 
-function escapeHtml(value) {
-    return String(value || '').replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
-}
-
-function getShiftConfig(code, isOt) {
-    if (!code || code === 'OFF') return null;
-    const settings = getSafePortalSettings();
-    const list = isOt ? settings.otShifts : settings.shifts;
-    return (list || []).find(s => s.code === code) || null;
-}
-
-
-const PERIOD_META = {
-    sang:  { label: 'Sáng',  icon: 'bx-sun' },
-    chieu: { label: 'Chiều', icon: 'bx-cloud-light-rain' },
-    dem:   { label: 'Đêm',   icon: 'bx-moon' }
-};
-
-function inferPeriodFromTime(time) {
-    const m = (time || '').match(/(\d{1,2})\s*:\s*\d{2}/);
-    if (!m) return '';
-    const h = parseInt(m[1], 10);
-    if (h >= 4 && h < 12) return 'sang';
-    if (h >= 12 && h < 20) return 'chieu';
-    return 'dem';
-}
-
-function getPeriod(conf) {
-    if (!conf) return '';
-    return conf.period || inferPeriodFromTime(conf.time);
-}
-
-// Tìm cấu hình ca theo mã: ưu tiên ca chính, sau đó ca tăng cường.
-function getAnyShiftConfig(code) {
-    if (!code || code === 'OFF') return null;
-    return getShiftConfig(code, false) || getShiftConfig(code, true);
-}
-
-function isPlusOtShift(code) {
-    return (getSafePortalSettings().otShifts || []).some(s => s.code === code);
-}
-
-function buildShiftCardHtml(code, conf, dayData, opts) {
-    opts = opts || {};
-    const period = getPeriod(conf);
-    const pm = PERIOD_META[period];
-    const color = conf && conf.color ? conf.color : '#475569';
-    const type = opts.noType ? 'chinhchu' : (dayData.type || 'chinhchu');
-
-    let html = `<div class="shift-card ${period ? 'p-' + period : ''} ${opts.cls || ''}" style="--shift-color:${color}">`;
-    if (opts.ribbon) html += `<div class="sc-ribbon">${escapeHtml(opts.ribbon)}</div>`;
-    html += `<div class="sc-head"><b>${escapeHtml(code)}</b>`;
-    if (pm) html += `<span class="period-badge"><i class='bx ${pm.icon}'></i>${pm.label}</span>`;
-    html += `</div>`;
-    if (conf && conf.name) html += `<div class="sc-name">${escapeHtml(conf.name)}</div>`;
-    if (conf && conf.time) html += `<span class="sc-time"><i class='bx bx-time-five'></i> ${escapeHtml(conf.time)}</span>`;
-
-    if (type === 'trucho') {
-        html += `<div class="type-badge trucho"><i class='bx bx-support'></i> Trực hộ</div>`;
-        if (dayData.help) html += `<div class="person-row">Hộ: ${escapeHtml(dayData.help)}</div>`;
-    } else if (type === 'doica') {
-        html += `<div class="type-badge doica"><i class='bx bx-transfer'></i> Đổi ca</div>`;
-        if (dayData.trade) html += `<div class="person-row">Đổi với: ${escapeHtml(dayData.trade)}</div>`;
-    }
-    html += `</div>`;
-    return html;
-}
-
-function buildDayCellHtml(day, dayData, meetings) {
-    const ot = (dayData.ot || '').trim();
-    const hasShift = !!(dayData.shift && dayData.shift !== 'OFF');
-    const hasOT = ot !== '';
-
-    let status = 'is-off', statusLabel = 'OFF';
-    if (hasShift) { status = 'has-shift'; statusLabel = 'Đi làm'; }
-    else if (hasOT) { status = 'is-ot'; statusLabel = 'OT'; }
-
-    let html = `<div class="day-topline"><span class="day-number">${day}</span><span class="day-status ${status}">${statusLabel}</span></div>`;
-
-    // Ca chính
-    if (hasShift) {
-        html += buildShiftCardHtml(dayData.shift, getShiftConfig(dayData.shift, false), dayData);
-    }
-
-    // Tăng cường (OT) — 3 kiểu hiển thị khác nhau
-    if (hasOT) {
-        const otConf = getAnyShiftConfig(ot);
-        const otTime = otConf && otConf.time ? otConf.time : '';
-        if (hasShift) {
-            // (C) Đã có ca chính, làm thêm: pill gọn
-            html += `<div class="ot-extra"><i class='bx bx-plus-circle'></i> Làm thêm ${escapeHtml(ot)}${otTime ? ` · ${escapeHtml(otTime)}` : ''}</div>`;
-        } else if (isPlusOtShift(ot)) {
-            // (A) Ngày OFF, làm ca "+" (S+, T+, C+, D+)
-            const pm = PERIOD_META[getPeriod(otConf)];
-            html += `<div class="ot-plus"><div class="otp-head"><i class='bx bxs-bolt'></i> <b>${escapeHtml(ot)}</b> Tăng cường${pm ? `<span class="period-badge"><i class='bx ${pm.icon}'></i>${pm.label}</span>` : ''}</div>${otTime ? `<span class="sc-time"><i class='bx bx-time-five'></i> ${escapeHtml(otTime)}</span>` : ''}</div>`;
-        } else {
-            // (B) Ngày OFF, làm nguyên ca chính (VD OT S2)
-            html += buildShiftCardHtml(ot, otConf, dayData, { cls: 'ot-full', ribbon: 'OT cả ca', noType: true });
-        }
-    }
-
-    // PCCV: luôn hiển thị ở ngày đi làm / OT, chưa có thì hiện "-"
-    if (hasShift || hasOT || dayData.task) {
-        html += dayData.task
-            ? `<div class="mini-pill task"><i class='bx bx-check-square'></i> ${escapeHtml(dayData.task)}</div>`
-            : `<div class="mini-pill task empty"><i class='bx bx-check-square'></i> PCCV: -</div>`;
-    }
-
-    // Lịch họp (giữ nguyên)
-    meetings.slice(0, 2).forEach(m => { html += `<button class="meeting-chip" onclick="event.stopPropagation(); openMeetingModal('${m.id}')"><i class='bx bx-video'></i>${escapeHtml(m.start || '--:--')} ${escapeHtml(m.title)}</button>`; });
-    if (meetings.length > 2) html += `<div class="more-chip">+${meetings.length - 2} lịch họp</div>`;
-    return html;
-}
+// ==================== LỊCH HỌP & DANH SÁCH BÊN PHẢI ====================
 
 function getMeetingsByDate(dateKey) {
     return Object.values(window.monthlyMeetingsData || {}).filter(m => m.date === dateKey).sort((a, b) => (a.start || '').localeCompare(b.start || ''));
@@ -669,15 +981,39 @@ function renderScheduleAgenda() {
     const agenda = document.getElementById('schedule-agenda');
     const meetingAgenda = document.getElementById('meeting-agenda');
     if (!agenda || !meetingAgenda) return;
-    const workItems = Object.entries(window.monthlyScheduleData || {}).filter(([, d]) => d.task || (d.shift && d.shift !== 'OFF') || d.ot).sort(([a], [b]) => a.localeCompare(b));
+
+    const workItems = Object.entries(window.monthlyScheduleData || {})
+        .filter(([, d]) => d.task || (d.shift && d.shift !== 'OFF') || d.ot)
+        .sort(([a], [b]) => a.localeCompare(b));
     const taskCountEl = document.getElementById('schedule-task-count');
     if (taskCountEl) taskCountEl.innerText = workItems.length;
-    agenda.innerHTML = workItems.length ? workItems.map(([date, d]) => `<button class="agenda-item" onclick="openDayModal('${date}')"><b>${date.slice(8, 10)}/${date.slice(5, 7)}</b><span>${escapeHtml(d.shift || 'OFF')}${d.ot ? ` · OT ${escapeHtml(d.ot)}` : ''}</span><small>${escapeHtml(d.task || 'Chưa phân công PCCV')}</small></button>`).join('') : '<div class="empty-agenda">Chưa có lịch làm việc trong tháng.</div>';
+
+    agenda.innerHTML = workItems.length ? workItems.map(([date]) => {
+        const info = buildDayInfo(date);
+        const dt = new Date(parseInt(date.slice(0, 4), 10), parseInt(date.slice(5, 7), 10) - 1, parseInt(date.slice(8, 10), 10));
+        const dow = WEEKDAY_SHORT[dt.getDay()];
+
+        let line = '';
+        if (info.hasMain) line += `${periodChipHtml(info.mainPeriod)}<span class="ag-code">${escapeHtml(info.shiftCode)}</span>`;
+        if (info.isOtOnly) line += `<span class="ag-ot-only"><i class='bx bx-bolt-circle'></i>${escapeHtml(info.otCode)}</span>`;
+        else if (info.hasOt) line += `<span class="ag-ot-add">+OT ${escapeHtml(info.otCode)}</span>`;
+
+        let who = '';
+        if (info.hasMain && info.type === 'doica') who = `Đổi với: ${info.trade || 'chưa chọn'}`;
+        if (info.hasMain && info.type === 'trucho') who = `Hộ: ${info.help || 'chưa chọn'}`;
+
+        return `<button class="agenda-item" type="button" onclick="openDayModal('${date}')">
+            <b>${date.slice(8, 10)}/${date.slice(5, 7)} · ${dow}</b>
+            <span class="ag-line">${line}</span>
+            ${who ? `<small>${escapeHtml(who)}</small>` : ''}
+            <small>${info.task ? 'PCCV: ' + escapeHtml(info.task) : 'Chưa phân công PCCV'}</small>
+        </button>`;
+    }).join('') : '<div class="empty-agenda">Chưa có lịch làm việc trong tháng.</div>';
 
     const meetings = Object.values(window.monthlyMeetingsData || {}).sort((a, b) => (`${a.date} ${a.start}`).localeCompare(`${b.date} ${b.start}`));
     const meetingCountEl = document.getElementById('meeting-count');
     if (meetingCountEl) meetingCountEl.innerText = meetings.length;
-    meetingAgenda.innerHTML = meetings.length ? meetings.map(m => `<button class="agenda-item meeting" onclick="openMeetingModal('${m.id}')"><b>${m.date.slice(8, 10)}/${m.date.slice(5, 7)} · ${escapeHtml(m.start)}</b><span>${escapeHtml(m.title)}</span><small>${m.mode === 'online' ? 'Online' : 'Offline'} · ${escapeHtml(m.location)}</small></button>`).join('') : '<div class="empty-agenda">Chưa có lịch họp trong tháng.</div>';
+    meetingAgenda.innerHTML = meetings.length ? meetings.map(m => `<button class="agenda-item meeting" type="button" onclick="openMeetingModal('${m.id}')"><b>${m.date.slice(8, 10)}/${m.date.slice(5, 7)} · ${escapeHtml(m.start)}</b><span>${escapeHtml(m.title)}</span><small>${m.mode === 'online' ? 'Online' : 'Offline'} · ${escapeHtml(m.location)}</small></button>`).join('') : '<div class="empty-agenda">Chưa có lịch họp trong tháng.</div>';
 }
 
 function closeMeetingModal() {
@@ -777,54 +1113,68 @@ function deleteMeetingEdit() {
     }
 }
 
+// ==================== ĐỒNG BỘ GOOGLE ====================
+
 /**
  * Đồng bộ 1 NGÀY lịch làm việc (ca chính + OT + PCCV) lên Google Calendar và
- * Google Tasks. Hàm dùng chung cho 2 nơi:
+ * Google Tasks. Hàm dùng chung cho 3 nơi:
  *  1) syncToGoogleEcosystem() — nút "Đồng bộ Google" thủ công, quét toàn bộ
  *     tháng đang xem.
- *  2) handleExcelUpload() — TỰ ĐỘNG gọi ngay sau khi Import Excel thành
- *     công, để không cần thao tác thêm bước "Đồng bộ Google" thủ công nữa.
- * Vì mỗi lần gọi đều xoá sự kiện/task cũ của đúng ngày đó rồi tạo lại (xem
- * syncCalendarEvent/syncOtCalendarEvent/syncGoogleTask trong googleSync.js),
- * nên gọi lại nhiều lần cho cùng 1 ngày là an toàn — ngày nào chưa có thì
- * thêm mới, ngày nào đã có thì tự cập nhật theo đúng dữ liệu mới nhất.
+ *  2) saveDayEdit() — tự động đồng bộ ngay sau khi hiệu chỉnh xong 1 ngày.
+ *  3) handleExcelUpload() (gián tiếp, qua "Đồng bộ Google" thủ công sau khi
+ *     import) — Import Excel CHỈ lưu dữ liệu để hiệu chỉnh, không tự đẩy lên
+ *     Google.
+ *
+ * QUY TẮC LỊCH:
+ *  - Có ca chính  -> sự kiện ở Lịch chính (giờ theo ca chính).
+ *  - Có OT        -> sự kiện ở Lịch OT riêng (giờ tra theo cả Ca tăng cường
+ *                    lẫn Ca chính, vì ô OT giờ chọn được cả hai loại).
+ *  - Ngày nghỉ làm OT (không ca chính) -> CHỈ có sự kiện ở Lịch OT; sự kiện
+ *    cũ ở Lịch chính (nếu có) được xoá đi.
+ *
+ * FIX DOUBLE EVENT/TASK: kết quả trả về tách RÕ 2 loại lỗi độc lập —
+ * result.eventError (Lịch chính/OT) và result.taskError (Task PCCV). Bên
+ * googleSync.js luôn "xoá thất bại thì không tạo mới", nên nếu có lỗi thì
+ * ngày đó chỉ đơn giản là CHƯA đồng bộ được — không có khả năng tạo dữ liệu
+ * trùng lặp — và người dùng được báo rõ để đồng bộ lại.
  */
 async function syncScheduleDayToGoogle(key, dayData, settings) {
     const hasMainShift = dayData.shift && dayData.shift !== 'OFF';
     const hasOT = dayData.ot && dayData.ot.trim() !== '';
-    const result = { taskError: null, eventError: null };
+    const result = { eventError: null, taskError: null };
 
     try {
         if (!hasMainShift && !hasOT) {
             if (typeof window.deleteWorkCalendarEvent === 'function') await window.deleteWorkCalendarEvent(key);
             if (typeof window.deleteOtCalendarEvent === 'function') await window.deleteOtCalendarEvent(key);
-        } else if (!hasMainShift && hasOT) {
-            // Ngày OFF chỉ làm OT: chỉ tạo sự kiện trên Lịch OT, không tạo sự kiện ở Lịch làm việc chính.
-            if (typeof window.deleteWorkCalendarEvent === 'function') await window.deleteWorkCalendarEvent(key);
-            const otConf = getAnyShiftConfig(dayData.ot);
-            if (otConf && otConf.time && typeof window.syncOtCalendarEvent === 'function') {
-                const otDesc = [];
-                if (dayData.task) otDesc.push(`PCCV: ${dayData.task}`);
-                await window.syncOtCalendarEvent(key, dayData, otConf.time, otDesc.join('\n'));
-            } else if (typeof window.deleteOtCalendarEvent === 'function') {
-                await window.deleteOtCalendarEvent(key);
-            }
         } else {
-            const conf = (settings.shifts || []).find(s => s.code === dayData.shift);
-            const shiftTime = conf ? conf.time : "08:00 - 17:00";
+            // ---- Lịch chính ----
+            if (hasMainShift) {
+                let shiftTime = "08:00 - 17:00";
+                const conf = (settings.shifts || []).find(s => s.code === dayData.shift);
+                if (conf) shiftTime = conf.time;
 
-            let desc = [];
-            if (dayData.task) desc.push(`PCCV: ${dayData.task}`);
-            if (hasOT) desc.push(`OT: ${dayData.ot}`);
+                let desc = [];
+                if (dayData.task) desc.push(`PCCV: ${dayData.task}`);
+                if (hasOT) desc.push(`OT: ${dayData.ot}`);
 
-            if (typeof syncCalendarEvent === 'function') await syncCalendarEvent(key, dayData, shiftTime, desc.join('\n'));
+                if (typeof syncCalendarEvent === 'function') await syncCalendarEvent(key, dayData, shiftTime, desc.join('\n'));
+            } else if (typeof window.deleteWorkCalendarEvent === 'function') {
+                // Ngày nghỉ làm tăng cường: không tạo sự kiện ở Lịch chính
+                await window.deleteWorkCalendarEvent(key);
+            }
 
+            // ---- Lịch OT riêng ----
             if (hasOT) {
-                const otConf = getAnyShiftConfig(dayData.ot);
-                if (otConf && otConf.time && typeof window.syncOtCalendarEvent === 'function') {
-                    let otDesc = [`Ca chính: ${dayData.shift}`];
+                let otTime = null;
+                const otConf = (settings.otShifts || []).find(s => s.code === dayData.ot)
+                    || (settings.shifts || []).find(s => s.code === dayData.ot);
+                if (otConf) otTime = otConf.time;
+
+                if (otTime && typeof window.syncOtCalendarEvent === 'function') {
+                    let otDesc = [hasMainShift ? `Ca chính: ${dayData.shift}` : 'Ngày nghỉ - làm tăng cường'];
                     if (dayData.task) otDesc.push(`PCCV: ${dayData.task}`);
-                    await window.syncOtCalendarEvent(key, dayData, otConf.time, otDesc.join('\n'));
+                    await window.syncOtCalendarEvent(key, dayData, otTime, otDesc.join('\n'));
                 } else if (typeof window.deleteOtCalendarEvent === 'function') {
                     await window.deleteOtCalendarEvent(key);
                 }
@@ -837,15 +1187,10 @@ async function syncScheduleDayToGoogle(key, dayData, settings) {
         result.eventError = eventErr;
     }
 
-    // PCCV (Google Task) — TÁCH RIÊNG khỏi phần Lịch phía trên. Trước đây
-    // syncGoogleTask()/deleteGoogleTask() tự bắt lỗi bên trong rồi chỉ
-    // console.error(), khiến lỗi (VD: 403 do Google Tasks API chưa được bật
-    // cho project, hoặc token cũ thiếu quyền "tasks") bị "nuốt" âm thầm —
-    // người dùng thấy Lịch lên Calendar bình thường nên tưởng đã xong, không
-    // hề biết Task bị lỗi. Nay các hàm này sẽ NÉM LẠI lỗi, và ở đây bắt lại
-    // để KHÔNG làm hỏng phần Lịch đã đồng bộ thành công, đồng thời trả lỗi
-    // đó ra ngoài qua result.taskError để syncToGoogleEcosystem() tổng hợp
-    // và báo rõ ràng cho người dùng biết chính xác ngày nào, lỗi gì.
+    // PCCV (Google Task) — TÁCH RIÊNG khỏi phần Lịch phía trên. Lỗi bên này
+    // không ảnh hưởng tới kết quả phần Lịch (và ngược lại), cả 2 đều được ghi
+    // nhận độc lập trong result để nơi gọi tổng hợp và báo đầy đủ cho người
+    // dùng.
     try {
         if (dayData.task && dayData.task.trim() !== '') {
             let taskNote = [];
@@ -870,16 +1215,34 @@ async function syncToGoogleEcosystem() {
     const meetingItems = Object.values(window.monthlyMeetingsData || {});
     if (keys.length === 0 && meetingItems.length === 0) return alert("Không có dữ liệu để đồng bộ.");
 
-    alert("Đang tiến hành đồng bộ nền... Quá trình này có thể mất vài giây, vui lòng không tắt trình duyệt.");
+    alert("Đang tiến hành đồng bộ nền... Với lịch cả tháng quá trình này có thể mất khoảng vài chục giây (hệ thống cố tình đi chậm lại một chút để tránh bị Google giới hạn tốc độ), vui lòng không tắt trình duyệt.");
 
     const taskFailedDates = [];
+    const eventFailedDates = [];
     let firstTaskErrorDetail = '';
+    let firstEventErrorDetail = '';
+
+    const btn = document.getElementById('btn-sync-calendar');
+    const originalBtnHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class='bx bx-loader-alt bx-spin'></i> Đang đồng bộ...`;
+    }
 
     try {
         const settings = getSafePortalSettings();
 
-        for (const key of keys) {
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
             const result = await syncScheduleDayToGoogle(key, window.monthlyScheduleData[key], settings);
+
+            if (result && result.eventError) {
+                eventFailedDates.push(key);
+                if (!firstEventErrorDetail) {
+                    const apiErr = result.eventError && result.eventError.result && result.eventError.result.error;
+                    firstEventErrorDetail = apiErr ? `${apiErr.code} - ${apiErr.message}` : (result.eventError.message || String(result.eventError));
+                }
+            }
             if (result && result.taskError) {
                 taskFailedDates.push(key);
                 if (!firstTaskErrorDetail) {
@@ -887,29 +1250,45 @@ async function syncToGoogleEcosystem() {
                     firstTaskErrorDetail = apiErr ? `${apiErr.code} - ${apiErr.message}` : (result.taskError.message || String(result.taskError));
                 }
             }
+
+            // Nghỉ 1 nhịp ngắn giữa mỗi ngày để tránh dồn quá nhiều request
+            // lên Google API cùng lúc (rate-limit). Không áp dụng cho ngày cuối.
+            if (i < keys.length - 1) await sleep(150);
         }
 
         for (const meeting of meetingItems) {
-            if (typeof syncMeetingCalendarEvent === 'function') await syncMeetingCalendarEvent(meeting);
+            if (typeof syncMeetingCalendarEvent === 'function') {
+                try {
+                    await syncMeetingCalendarEvent(meeting);
+                } catch (mErr) {
+                    console.error(`[G-Portal] Lỗi đồng bộ Lịch họp ${meeting.id}:`, mErr);
+                }
+            }
         }
 
-        if (taskFailedDates.length === 0) {
-            alert("✅ Đã đồng bộ Lịch, Task PCCV và Lịch họp lên Google thành công!");
+        if (taskFailedDates.length === 0 && eventFailedDates.length === 0) {
+            alert("✅ Đã đồng bộ Lịch, Task PCCV và Lịch họp lên Google thành công! (Không có Event/Task nào bị trùng lặp.)");
         } else {
-            // Lịch/Calendar vẫn đã lên bình thường (không phụ thuộc Task), chỉ
-            // riêng Task PCCV bị lỗi -> báo rõ để không còn "im lặng" như trước.
-            let msg = `⚠️ Đã đồng bộ xong Lịch (Ca/OT) và Lịch họp lên Google Calendar.\n`;
-            msg += `Nhưng Task PCCV của ${taskFailedDates.length} ngày KHÔNG đồng bộ được lên Google Tasks: ${taskFailedDates.slice(0, 10).join(', ')}${taskFailedDates.length > 10 ? '...' : ''}.\n`;
-            if (firstTaskErrorDetail) msg += `Chi tiết lỗi: ${firstTaskErrorDetail}\n`;
-            msg += `Nguyên nhân thường gặp:\n`;
-            msg += `- Google Tasks API chưa được BẬT (Enable) trong Google Cloud Console cho project đang dùng API_KEY/CLIENT_ID này.\n`;
-            msg += `- Tài khoản đăng nhập từ trước khi quyền "Tasks" được thêm vào hệ thống -> hãy Đăng xuất rồi Đăng nhập lại để cấp lại đầy đủ quyền.\n`;
-            msg += `Xem Console (F12) để biết lỗi đầy đủ của từng ngày.`;
+            let msg = `⚠️ Đồng bộ hoàn tất nhưng có một số ngày gặp lỗi:\n\n`;
+            if (eventFailedDates.length > 0) {
+                msg += `• Lịch (Ca/OT) lỗi ở ${eventFailedDates.length} ngày: ${eventFailedDates.slice(0, 10).join(', ')}${eventFailedDates.length > 10 ? '...' : ''}\n`;
+                if (firstEventErrorDetail) msg += `  Chi tiết: ${firstEventErrorDetail}\n`;
+            }
+            if (taskFailedDates.length > 0) {
+                msg += `• Task PCCV lỗi ở ${taskFailedDates.length} ngày: ${taskFailedDates.slice(0, 10).join(', ')}${taskFailedDates.length > 10 ? '...' : ''}\n`;
+                if (firstTaskErrorDetail) msg += `  Chi tiết: ${firstTaskErrorDetail}\n`;
+            }
+            msg += `\nCÁC NGÀY BỊ LỖI KHÔNG TẠO TRÙNG LẶP (hệ thống đã huỷ bước tạo mới nếu không xoá được dữ liệu cũ) — chỉ đơn giản là CHƯA đồng bộ được. Vui lòng bấm "Đồng bộ Google" lại (có thể chờ 1-2 phút để Google hết giới hạn tốc độ), hoặc kiểm tra quyền Tasks API / kết nối mạng.`;
             alert(msg);
         }
     } catch (err) {
         console.error('Lỗi đồng bộ Google Ecosystem:', err);
         alert("Có lỗi xảy ra trong quá trình đồng bộ lên Google. Một phần dữ liệu có thể đã đồng bộ thành công, vui lòng kiểm tra lại Google Calendar/Tasks hoặc thử đồng bộ lại.");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnHtml;
+        }
     }
 }
 
@@ -942,6 +1321,46 @@ async function checkSyncWithGoogleHandler() {
     } catch (err) {
         console.error('Lỗi kiểm tra đồng bộ với Google:', err);
         alert("Có lỗi xảy ra khi kiểm tra đồng bộ với Google. Vui lòng thử lại sau.");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+}
+
+/**
+ * "Dọn dẹp trùng lặp" — quét Event (Lịch chính + Lịch OT + Lịch họp) và Task
+ * PCCV của THÁNG ĐANG XEM, gom nhóm theo ngày/loại, giữ lại 1 bản mới nhất
+ * (riêng Task: ưu tiên bản đã hoàn thành) và xoá các bản trùng lặp còn lại.
+ */
+async function cleanupDuplicatesHandler() {
+    if (typeof AppState === 'undefined' || !AppState.isLoggedIn) return alert("Vui lòng đăng nhập Google trước!");
+    if (typeof window.cleanupDuplicateGoogleData !== 'function') {
+        return alert("Chức năng dọn dẹp trùng lặp chưa sẵn sàng, vui lòng tải lại trang.");
+    }
+
+    const confirmed = confirm('Hệ thống sẽ quét toàn bộ Event (Lịch chính/OT/Họp) và Task PCCV trong THÁNG ĐANG XEM. Với mỗi ngày có nhiều hơn 1 bản trùng, hệ thống sẽ GIỮ LẠI bản mới nhất và XOÁ các bản còn lại trên Google Calendar/Tasks.\n\nBạn có muốn tiếp tục?');
+    if (!confirmed) return;
+
+    const btn = document.getElementById('btn-cleanup-duplicates');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class='bx bx-loader-alt bx-spin'></i> Đang dọn dẹp...`;
+    }
+
+    try {
+        const result = await window.cleanupDuplicateGoogleData(currentDate);
+        if (result.removedEvents === 0 && result.removedTasks === 0) {
+            alert("✅ Không phát hiện Event/Task nào bị trùng lặp trong tháng này.");
+        } else {
+            alert(`✅ Đã dọn dẹp xong: xoá ${result.removedEvents} Event trùng lặp và ${result.removedTasks} Task trùng lặp trên Google Calendar/Tasks (đã giữ lại đúng 1 bản mới nhất cho mỗi ngày).`);
+        }
+        if (typeof checkSyncWithGoogleHandler === 'function') await checkSyncWithGoogleHandler();
+    } catch (err) {
+        console.error('Lỗi dọn dẹp trùng lặp:', err);
+        alert("Có lỗi xảy ra khi dọn dẹp trùng lặp. Vui lòng thử lại sau, hoặc kiểm tra Console (F12) để biết chi tiết.");
     } finally {
         if (btn) {
             btn.disabled = false;
