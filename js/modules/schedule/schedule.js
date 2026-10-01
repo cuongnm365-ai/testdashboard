@@ -27,6 +27,12 @@
  *    tạo thêm sự kiện ở Lịch chính). Giờ của OT được tra theo cả danh sách
  *    ca tăng cường lẫn ca chính. Nguyên tắc chống double (xoá thất bại thì
  *    không tạo mới) giữ nguyên.
+ * 7) CHỐNG TASK/EVENT BỊ NHÂN ĐÔI DO CHẠY ĐỒNG THỜI: mọi thao tác ghi lên
+ *    Google (lưu 1 ngày, xoá ngày, Đồng bộ Google cả tháng, lịch họp, Kiểm
+ *    tra đồng bộ, Dọn dẹp trùng lặp) giờ được XẾP HÀNG (enqueueGoogleSync) và
+ *    chạy lần lượt từng việc một. Trước đây lưu 1 ngày chạy ngầm trong khi
+ *    bấm "Đồng bộ Google" hoặc lưu ngày khác -> 2 luồng cùng thấy "chưa có
+ *    Task" và cùng tạo mới -> trùng lặp.
  * 6) Tuần bắt đầu từ Thứ 2. Điều hướng tháng dùng ngày mùng 1 để tránh lỗi
  *    nhảy tháng khi đang ở ngày 29-31.
  *
@@ -86,6 +92,19 @@ function getSafePortalSettings() {
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Hàng đợi tuần tự cho MỌI thao tác ghi lên Google (Calendar/Tasks). Mỗi việc
+// chỉ bắt đầu khi việc trước đã xong (kể cả khi việc trước lỗi), nhờ vậy
+// không bao giờ có 2 luồng cùng "tìm thấy chưa có Task" rồi cùng tạo mới.
+// LƯU Ý: không gọi enqueueGoogleSync() lồng bên trong 1 hàm đang chạy trong
+// hàng đợi (sẽ tự chờ chính mình -> treo).
+let googleSyncChain = Promise.resolve();
+let googleBulkSyncing = false;
+function enqueueGoogleSync(task) {
+    const run = googleSyncChain.then(() => task());
+    googleSyncChain = run.catch(() => {});
+    return run;
 }
 
 /**
@@ -777,7 +796,8 @@ function saveDayEdit() {
         // không tạo mới) một cách nhất quán.
         if (typeof AppState !== 'undefined' && AppState.isLoggedIn) {
             const settings = getSafePortalSettings();
-            syncScheduleDayToGoogle(savedKey, window.monthlyScheduleData[savedKey], settings).then(result => {
+            const daySnapshot = Object.assign({}, window.monthlyScheduleData[savedKey]);
+            enqueueGoogleSync(() => syncScheduleDayToGoogle(savedKey, daySnapshot, settings)).then(result => {
                 if (result && (result.eventError || result.taskError)) {
                     let msg = `⚠️ Đã lưu lịch ngày ${savedKey} trên Portal, nhưng gặp lỗi khi đồng bộ lên Google:\n`;
                     if (result.eventError) {
@@ -821,9 +841,11 @@ function deleteDayEdit() {
         saveScheduleToDrive();
 
         if (typeof AppState !== 'undefined' && AppState.isLoggedIn) {
-            if (typeof window.deleteWorkCalendarEvent === 'function') window.deleteWorkCalendarEvent(dateKey).catch(err => console.error('Lỗi xóa sự kiện Lịch (Ca chính):', err));
-            if (typeof window.deleteOtCalendarEvent === 'function') window.deleteOtCalendarEvent(dateKey).catch(err => console.error('Lỗi xóa sự kiện Lịch (OT):', err));
-            if (typeof window.deleteGoogleTask === 'function') window.deleteGoogleTask(dateKey).catch(err => console.error('Lỗi xóa Google Task:', err));
+            enqueueGoogleSync(async () => {
+                if (typeof window.deleteWorkCalendarEvent === 'function') await window.deleteWorkCalendarEvent(dateKey).catch(err => console.error('Lỗi xóa sự kiện Lịch (Ca chính):', err));
+                if (typeof window.deleteOtCalendarEvent === 'function') await window.deleteOtCalendarEvent(dateKey).catch(err => console.error('Lỗi xóa sự kiện Lịch (OT):', err));
+                if (typeof window.deleteGoogleTask === 'function') await window.deleteGoogleTask(dateKey).catch(err => console.error('Lỗi xóa Google Task:', err));
+            });
         }
     } catch (e) {
         console.error('Lỗi xóa lịch ngày:', e);
@@ -1070,7 +1092,7 @@ function saveMeetingEdit() {
         const id = editingMeetingId || `meeting_${Date.now()}`;
         const previousMeeting = editingMeetingId ? window.monthlyMeetingsData[editingMeetingId] : null;
         if (previousMeeting && previousMeeting.date !== date && typeof window.deleteMeetingCalendarEvent === 'function') {
-            window.deleteMeetingCalendarEvent(previousMeeting).catch(err => console.error('Lỗi xóa sự kiện Lịch họp cũ:', err));
+            enqueueGoogleSync(() => window.deleteMeetingCalendarEvent(previousMeeting)).catch(err => console.error('Lỗi xóa sự kiện Lịch họp cũ:', err));
         }
         window.monthlyMeetingsData[id] = {
             id, date,
@@ -1086,7 +1108,8 @@ function saveMeetingEdit() {
         saveMeetingsToDrive();
 
         if (typeof AppState !== 'undefined' && AppState.isLoggedIn && typeof syncMeetingCalendarEvent === 'function') {
-            syncMeetingCalendarEvent(window.monthlyMeetingsData[id]).catch(err => console.error('Lỗi đồng bộ Lịch họp:', err));
+            const meetingSnapshot = Object.assign({}, window.monthlyMeetingsData[id]);
+            enqueueGoogleSync(() => syncMeetingCalendarEvent(meetingSnapshot)).catch(err => console.error('Lỗi đồng bộ Lịch họp:', err));
         }
     } catch (e) {
         console.error('Lỗi lưu Lịch họp:', e);
@@ -1100,7 +1123,7 @@ function deleteMeetingEdit() {
         if (!editingMeetingId) return;
         const meeting = window.monthlyMeetingsData[editingMeetingId];
         if (meeting && typeof window.deleteMeetingCalendarEvent === 'function') {
-            window.deleteMeetingCalendarEvent(meeting).catch(err => console.error('Lỗi xóa sự kiện Lịch họp:', err));
+            enqueueGoogleSync(() => window.deleteMeetingCalendarEvent(meeting)).catch(err => console.error('Lỗi xóa sự kiện Lịch họp:', err));
         }
         delete window.monthlyMeetingsData[editingMeetingId];
         closeMeetingModal();
@@ -1210,6 +1233,16 @@ async function syncScheduleDayToGoogle(key, dayData, settings) {
 
 async function syncToGoogleEcosystem() {
     if (typeof AppState === 'undefined' || !AppState.isLoggedIn) return alert("Vui lòng đăng nhập Google trước!");
+    if (googleBulkSyncing) return alert("Hệ thống đang đồng bộ, vui lòng chờ hoàn tất rồi bấm lại.");
+    googleBulkSyncing = true;
+    try {
+        await enqueueGoogleSync(runBulkGoogleSync);
+    } finally {
+        googleBulkSyncing = false;
+    }
+}
+
+async function runBulkGoogleSync() {
 
     const keys = Object.keys(window.monthlyScheduleData);
     const meetingItems = Object.values(window.monthlyMeetingsData || {});
@@ -1306,7 +1339,7 @@ async function checkSyncWithGoogleHandler() {
     }
 
     try {
-        const result = await window.reconcileMonthWithGoogle(currentDate);
+        const result = await enqueueGoogleSync(() => window.reconcileMonthWithGoogle(currentDate));
 
         if (result.changedSchedule) await saveScheduleToDrive();
         if (result.changedMeeting) await saveMeetingsToDrive();
@@ -1351,7 +1384,7 @@ async function cleanupDuplicatesHandler() {
     }
 
     try {
-        const result = await window.cleanupDuplicateGoogleData(currentDate);
+        const result = await enqueueGoogleSync(() => window.cleanupDuplicateGoogleData(currentDate));
         if (result.removedEvents === 0 && result.removedTasks === 0) {
             alert("✅ Không phát hiện Event/Task nào bị trùng lặp trong tháng này.");
         } else {
