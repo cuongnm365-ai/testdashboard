@@ -526,6 +526,7 @@ window.retryGoogleLibraries = function () {
 
 function loadAllDataFromDrive() {
     if (typeof window.loadSettingsFromDrive === 'function') window.loadSettingsFromDrive();
+    if (typeof window.loadWorkflowSettingsFromDrive === 'function') window.loadWorkflowSettingsFromDrive();
     if (typeof window.loadScheduleFromDrive === 'function') window.loadScheduleFromDrive();
     if (typeof window.loadProductivityFromDrive === 'function') window.loadProductivityFromDrive();
 }
