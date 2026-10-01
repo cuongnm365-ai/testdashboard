@@ -194,6 +194,8 @@ window.switchView = function (viewName) {
     if (viewName === 'productivity' && typeof loadProductivityForDate === 'function') loadProductivityForDate();
     if (viewName === 'dashboard' && typeof window.updateDashboard === 'function') window.updateDashboard();
     if (viewName === 'email' && typeof window.refreshEmailStatsIfActive === 'function') window.refreshEmailStatsIfActive();
+    if (viewName === 'monitoring' && typeof window.loadMonitoringData === 'function') window.loadMonitoringData();
+    if (viewName === 'workflow_setting' && typeof renderWorkflowSettingsUI === 'function') renderWorkflowSettingsUI();
 };
 
 window.showApp = function () {
