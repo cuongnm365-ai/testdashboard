@@ -166,6 +166,43 @@
         list.innerHTML = unique(options).map((value) => `<option value="${escapeHtml(value)}"></option>`).join('');
     }
 
+    function renderBranchOptions() {
+        const list = document.getElementById('complaint-cn-options');
+        const filter = document.getElementById('complaint-cn-filter');
+        const selected = document.getElementById('complaint-cn')?.value || '';
+        if (!list) return;
+        const query = normalizeText(filter?.value).toLocaleLowerCase();
+        const options = getCNOptionsByKV(document.getElementById('complaint-kv')?.value || '')
+            .filter((option) => option !== 'CXD' && option.toLocaleLowerCase().includes(query));
+        list.replaceChildren();
+        if (!options.length) {
+            const empty = document.createElement('div');
+            empty.className = 'complaint-branch-empty';
+            empty.textContent = 'Không có chi nhánh phù hợp';
+            list.appendChild(empty);
+            return;
+        }
+        options.forEach((option) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'complaint-branch-option';
+            item.setAttribute('role', 'option');
+            item.setAttribute('aria-selected', String(option === selected));
+            item.textContent = option;
+            item.addEventListener('click', () => {
+                const select = document.getElementById('complaint-cn');
+                const input = document.getElementById('complaint-cn-search');
+                setComboValue(select, input, option);
+                const origin = document.getElementById('complaint-branch-origin');
+                if (origin) origin.textContent = complaintState.detected?.branch === option ? 'Đã tự phát hiện' : 'Đã chọn thủ công';
+                const menu = document.getElementById('complaint-cn-menu');
+                if (menu) menu.hidden = true;
+                if (input) input.setAttribute('aria-expanded', 'false');
+            });
+            list.appendChild(item);
+        });
+    }
+
     function setComboValue(select, input, value) {
         const clean = normalizeText(value);
         if (select && clean) {
@@ -186,7 +223,7 @@
         if (cnSelect) {
             const current = cnInput?.value || cnSelect.value;
             fillSelect(cnSelect, getCNOptionsByKV(kv), current || '');
-            fillDatalist(document.getElementById('complaint-cn-options'), getCNOptionsByKV(kv));
+            renderBranchOptions();
         }
         if (fTelSelect) {
             const current = fTelInput?.value || fTelSelect.value;
@@ -468,20 +505,9 @@
     }
 
     function updateProcessingDetection(note, scanned) {
-        const nodes = {
-            contract: document.getElementById('complaint-detected-contract'),
-            phone: document.getElementById('complaint-detected-phone'),
-            email: document.getElementById('complaint-detected-email'),
-            region: document.getElementById('complaint-detected-region'),
-            branch: document.getElementById('complaint-detected-branch')
-        };
-        if (!Object.values(nodes).every(Boolean)) return;
         if (!normalizeText(note)) {
             const previous = complaintState.detected || {};
             complaintState.detected = null;
-            nodes.contract.textContent = scanned ? 'Not found' : 'Not scanned';
-            nodes.phone.textContent = scanned ? 'Not found' : 'Not scanned';
-            nodes.email.textContent = scanned ? 'Not found' : 'Not scanned';
             if (scanned) {
                 const regionField = document.getElementById('complaint-kv');
                 const branchField = document.getElementById('complaint-cn');
@@ -497,22 +523,12 @@
                     branchField.value = 'CXD';
                 }
             }
-            nodes.region.textContent = document.getElementById('complaint-kv')?.value || 'CXD';
-            nodes.branch.textContent = document.getElementById('complaint-cn')?.value || 'CXD';
             return;
         }
 
         const detected = extractProcessingDetails(note);
         const previous = complaintState.detected || {};
         complaintState.detected = detected;
-        nodes.contract.textContent = detected.contractNo ? `${detected.contractNo} ✓` : 'Not found';
-        nodes.phone.textContent = detected.contractNo
-            ? 'Not scanned (contract found)'
-            : detected.phone ? `${detected.phone} ✓` : 'Not found';
-        nodes.email.textContent = detected.customerEmail ? `${detected.customerEmail} ✓` : 'Not found';
-        nodes.region.textContent = detected.region || 'CXD';
-        nodes.branch.textContent = detected.branch || 'CXD';
-
         const phoneField = document.getElementById('complaint-phone');
         const phoneIsAutomatic = phoneField && (!phoneField.value || phoneField.value === previous.customerIdentifier);
         const contractTakesPriority = detected.contractNo && phoneField && /^0\d{9,10}$/.test(phoneField.value);
@@ -539,11 +555,12 @@
         const currentBranch = branchInput?.value || branchField?.value || '';
         if (branchField && (!currentBranch || currentBranch === 'CXD' || currentBranch === previous.branch)) {
             updateRelatedDropdowns();
-            if (![...branchField.options].some((option) => option.value === detected.branch)) branchField.add(new Option(detected.branch, detected.branch));
-            branchField.value = detected.branch;
-            if (branchInput) branchInput.value = detected.branch || '';
+            if ([...branchField.options].some((option) => option.value === detected.branch)) {
+                branchField.value = detected.branch;
+                if (branchInput) branchInput.value = detected.branch || '';
+            }
             const branchOrigin = document.getElementById('complaint-branch-origin');
-            if (branchOrigin) branchOrigin.textContent = detected.branch ? 'Đã tự phát hiện · có thể sửa' : 'Chưa phát hiện · chọn hoặc nhập';
+            if (branchOrigin) branchOrigin.textContent = detected.branch && branchField.value === detected.branch ? 'Đã tự phát hiện' : 'Chọn theo khu vực';
         }
         if (detected.srCode && !document.getElementById('complaint-sr-code').value) {
             document.getElementById('complaint-sr-code').value = detected.srCode;
@@ -1215,12 +1232,34 @@
             }
             updateRelatedDropdowns();
         });
-        document.getElementById('complaint-cn-search')?.addEventListener('input', (event) => {
-            setComboValue(document.getElementById('complaint-cn'), event.target, event.target.value);
-            const origin = document.getElementById('complaint-branch-origin');
-            if (origin) origin.textContent = complaintState.detected?.branch === event.target.value ? 'Đã tự phát hiện · có thể sửa' : 'Đã chọn thủ công';
-            const detected = document.getElementById('complaint-detected-branch');
-            if (detected && event.target.value) detected.textContent = event.target.value;
+        const branchInput = document.getElementById('complaint-cn-search');
+        const branchMenu = document.getElementById('complaint-cn-menu');
+        const openBranchMenu = () => {
+            if (!branchMenu) return;
+            renderBranchOptions();
+            branchMenu.hidden = false;
+            branchInput?.setAttribute('aria-expanded', 'true');
+            document.getElementById('complaint-cn-filter')?.focus();
+        };
+        document.getElementById('complaint-cn-toggle')?.addEventListener('click', openBranchMenu);
+        branchInput?.addEventListener('click', openBranchMenu);
+        branchInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') { event.preventDefault(); openBranchMenu(); }
+        });
+        document.getElementById('complaint-cn-filter')?.addEventListener('input', renderBranchOptions);
+        document.getElementById('complaint-cn-filter')?.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                branchMenu.hidden = true;
+                branchInput?.setAttribute('aria-expanded', 'false');
+                branchInput?.focus();
+            }
+        });
+        document.addEventListener('pointerdown', (event) => {
+            const picker = document.querySelector('.complaint-branch-picker');
+            if (branchMenu && !branchMenu.hidden && picker && !picker.contains(event.target)) {
+                branchMenu.hidden = true;
+                branchInput?.setAttribute('aria-expanded', 'false');
+            }
         });
         document.getElementById('complaint-ftel-search')?.addEventListener('input', (event) => {
             setComboValue(document.getElementById('complaint-ftel'), event.target, event.target.value);
@@ -1346,11 +1385,43 @@
             :root[data-theme="dark"] #view-complaint #complaint-sheet-status { color:#86efac; }
             :root[data-theme="dark"] #view-complaint #complaint-sheet-status.is-error { color:#fca5a5; }
             :root[data-theme="dark"] #view-complaint .complaint-sheet-config > summary { color:var(--text-main); }
+            /* Complaint entry workspace: scope these layout rules to the modal form only. */
+            #view-complaint .complaint-modal-card { width:min(96vw,1440px); max-width:1440px; }
+            #view-complaint .complaint-modal-body { max-height:82vh !important; padding:16px 18px; }
+            #view-complaint .complaint-initial-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px 16px; }
+            #view-complaint .complaint-initial-grid .span-all { grid-column:1 / -1; }
+            #view-complaint .complaint-paste-card { padding:12px !important; margin-bottom:12px !important; }
+            #view-complaint #complaint-paste-text { min-height:76px; max-height:150px; resize:vertical; }
+            #view-complaint .complaint-processing-card { gap:10px; padding:14px; }
+            #view-complaint .complaint-note-row { display:grid; grid-template-columns:minmax(180px,240px) minmax(0,1fr); gap:12px; align-items:start; }
+            #view-complaint .complaint-note-row .complaint-status-field { max-width:none; }
+            #view-complaint .complaint-helper { display:block; margin-top:2px; color:#475569; font-size:11px; font-weight:500; }
+            #view-complaint #complaint-note { min-height:54px; max-height:150px; overflow:auto; resize:vertical; transition:min-height .16s ease; }
+            #view-complaint #complaint-note:focus { min-height:112px; }
+            #view-complaint .complaint-more-processing { margin-top:10px; padding:12px; gap:10px; grid-template-columns:repeat(3,minmax(0,1fr)); background:#f1f5f9; }
+            #view-complaint .complaint-field-group { padding:11px; background:#fff; border-color:#cbd5e1; }
+            #view-complaint .complaint-field-group h5 { margin-bottom:8px; font-size:12.5px; }
+            #view-complaint .complaint-field-grid { gap:8px; }
+            #view-complaint .complaint-branch-picker { position:relative; display:flex; align-items:stretch; }
+            #view-complaint .complaint-branch-picker > .form-input { padding-right:42px; cursor:pointer; }
+            #view-complaint .complaint-branch-toggle { position:absolute; top:2px; right:2px; bottom:2px; min-width:36px; padding:0 8px; border:0; background:transparent; color:#334155; }
+            #view-complaint .complaint-branch-menu { position:absolute; z-index:20; top:calc(100% + 5px); left:0; right:0; padding:8px; border:1px solid #94a3b8; border-radius:9px; background:#fff; box-shadow:0 12px 28px rgba(15,23,42,.16); }
+            #view-complaint .complaint-branch-menu[hidden] { display:none; }
+            #view-complaint .complaint-branch-menu > .form-input { min-height:36px; padding:7px 9px; }
+            #view-complaint .complaint-branch-options { max-height:210px; overflow:auto; margin-top:6px; }
+            #view-complaint .complaint-branch-option { display:block; width:100%; padding:8px 10px; border:0; border-radius:6px; background:#fff; color:#0f172a; text-align:left; cursor:pointer; }
+            #view-complaint .complaint-branch-option:hover, #view-complaint .complaint-branch-option:focus-visible { outline:none; background:#e0f2fe; }
+            #view-complaint .complaint-branch-option[aria-selected="true"] { background:#dbeafe; color:#075985; font-weight:700; }
+            #view-complaint .complaint-branch-empty { padding:10px; color:#475569; font-size:12px; }
+            #view-complaint .complaint-modal-body .form-input:hover, #view-complaint .complaint-modal-body .form-select:hover { border-color:#94a3b8; }
             @media (max-width: 900px) { #view-complaint .complaint-form-grid { grid-template-columns: 1fr; } #view-complaint .complaint-form-grid .span-2 { grid-column: span 1; } }
+            @media (max-width: 1100px) { #view-complaint .complaint-initial-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-initial-grid .span-all { grid-column:1 / -1; } }
             @media (max-width: 900px) { #view-complaint .complaint-filter-grid { grid-template-columns:repeat(2,minmax(130px,1fr)); } }
             @media (max-width: 1100px) { #view-complaint .complaint-more-processing { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-column-options { grid-template-columns:repeat(4,minmax(100px,1fr)); } }
             @media (max-width: 640px) { #view-complaint .complaint-detection-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-processing-heading { align-items:flex-start; flex-direction:column; } #view-complaint .complaint-filter-grid { grid-template-columns:1fr; } #view-complaint .complaint-more-processing { grid-template-columns:1fr; padding:10px; } #view-complaint .complaint-columns-panel { flex-direction:column; } #view-complaint .complaint-column-options { grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; } #view-complaint .complaint-sheet-config > * { max-width:100%; } }
             @media (max-width: 480px) { #view-complaint .complaint-field-grid { grid-template-columns:1fr; } }
+            @media (max-width: 900px) { #view-complaint .complaint-initial-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-note-row { grid-template-columns:1fr; } }
+            @media (max-width: 640px) { #view-complaint .complaint-modal-body { padding:10px; } #view-complaint .complaint-initial-grid { grid-template-columns:1fr; } #view-complaint .complaint-initial-grid .span-all { grid-column:1; } #view-complaint .complaint-more-processing { grid-template-columns:1fr; } }
         `;
         document.head.appendChild(style);
     }
