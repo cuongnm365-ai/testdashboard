@@ -180,11 +180,15 @@
         complaintState.editingId = row && row.id ? row.id : null;
         populateComplaintForm(row || {});
         modal.style.display = 'flex';
+        modal.classList.add('active');
     }
 
     function closeComplaintModal() {
         const modal = document.getElementById('complaint-modal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
         complaintState.editingId = null;
         complaintState.lastParsed = null;
     }

@@ -1,47 +1,47 @@
-﻿/**
- * workflow-setting.js - Workflow Settings Module (Báº¢N VIáº¾T Láº I TOÃ€N Bá»˜)
+/**
+ * workflow-setting.js - Workflow Settings Module (BẢN VIẾT LẠI TOÀN BỘ)
  *
- * Quáº£n lÃ½ cÃ¡c danh má»¥c Ä‘á»™ng dÃ¹ng cho module GiÃ¡m SÃ¡t vÃ  Complaint (sau nÃ y).
+ * Quản lý các danh mục động dùng cho module Giám Sát và Complaint (sau này).
  *
  * ============================================================================
- * NHÃ“M Dá»® LIá»†U
+ * NHÓM DỮ LIỆU
  * ============================================================================
- * DÃ¹ng chung GiÃ¡m SÃ¡t + Complaint:
- *   - regions        : VÃ¹ng miá»n  (Khu vá»±c > Tá»‰nh/ThÃ nh > Chi nhÃ¡nh)
- *   - requestTypes   : PhÃ¢n loáº¡i RQL2 (cáº¥p 1 > cáº¥p 2)
- *   - resolutions    : PhÆ°Æ¡ng Ã¡n
- * DÃ nh cho Complaint (Má»šI):
- *   - sources           : Nguá»“n tiáº¿p nháº­n khiáº¿u náº¡i
+ * Dùng chung Giám Sát + Complaint:
+ *   - regions        : Vùng miền  (Khu vực > Tỉnh/Thành > Chi nhánh)
+ *   - requestTypes   : Phân loại RQL2 (cấp 1 > cấp 2)
+ *   - resolutions    : Phương án
+ * Dành cho Complaint (MỚI):
+ *   - sources           : Nguồn tiếp nhận khiếu nại
  *   - fbAccounts        : Nick FB CSKH
- *   - levels            : Cáº¥p Ä‘á»™ khiáº¿u náº¡i
- *   - handlingUnits     : ÄÆ¡n vá»‹ xá»­ lÃ½
+ *   - levels            : Cấp độ khiếu nại
+ *   - handlingUnits     : Đơn vị xử lý
  *   - vouchers          : Voucher
- *   - results           : Káº¿t quáº£
- *   - complaintServices : Loáº¡i dá»‹ch vá»¥ khiáº¿u náº¡i
- *   - srTypes           : Loáº¡i yÃªu cáº§u SR (cáº¥p 1 > cáº¥p 2, phá»¥ thuá»™c nhÆ° VÃ¹ng miá»n)
+ *   - results           : Kết quả
+ *   - complaintServices : Loại dịch vụ khiếu nại
+ *   - srTypes           : Loại yêu cầu SR (cấp 1 > cấp 2, phụ thuộc như Vùng miền)
  *
- * Cáº¥u trÃºc dá»¯ liá»‡u lÆ°u trÃªn Drive (workflow_settings.json) â€” GIá»® NGUYÃŠN cáº¥u
- * trÃºc cÅ© cá»§a requestTypes/regions/resolutions nÃªn monitoring.js váº«n cháº¡y:
+ * Cấu trúc dữ liệu lưu trên Drive (workflow_settings.json) — GIỮ NGUYÊN cấu
+ * trúc cũ của requestTypes/regions/resolutions nên monitoring.js vẫn chạy:
  *   requestTypes / srTypes : [{ type, subTypes: [] }]
  *   regions                : [{ region, provinceCode, provinceName, branches: [] }]
- *   danh sÃ¡ch Ä‘Æ¡n giáº£n     : [{ name }]
+ *   danh sách đơn giản     : [{ name }]
  *
  * ============================================================================
- * THAY Äá»”I SO Vá»šI Báº¢N CÅ¨
+ * THAY ĐỔI SO VỚI BẢN CŨ
  * ============================================================================
- * 1) Giao diá»‡n trang Ä‘Æ°á»£c JS tá»± dá»±ng vÃ o #view-workflow_setting (KHÃ”NG cáº§n sá»­a
- *    index.html): thÃªm danh má»¥c má»›i chá»‰ cáº§n khai bÃ¡o trong SIMPLE_LISTS /
- *    TREE_LISTS bÃªn dÆ°á»›i.
- * 2) Dá»¯ liá»‡u VÃ¹ng miá»n gá»n hÆ¡n: gom theo Khu vá»±c, má»—i khu vá»±c lÃ  1 khá»‘i thu
- *    gá»n/má»Ÿ rá»™ng, cÃ³ Ã´ tÃ¬m kiáº¿m â€” khÃ´ng cÃ²n láº·p tÃªn khu vá»±c cho tá»«ng tá»‰nh.
- * 3) Sá»­a lá»—i Import Excel VÃ¹ng miá»n: trÆ°á»›c Ä‘Ã¢y dÃ¹ng (cell || '').trim() nÃªn
- *    lá»—i khi Ã´ lÃ  sá»‘, vÃ  báº¯t buá»™c tiÃªu Ä‘á» cá»™t pháº£i khá»›p tá»«ng kÃ½ tá»±. Giá» nháº­n
- *    diá»‡n cá»™t linh hoáº¡t (khÃ´ng phÃ¢n biá»‡t hoa thÆ°á»ng/dáº¥u/khoáº£ng tráº¯ng), tá»± Ä‘iá»n
- *    xuá»‘ng cÃ¡c Ã´ gá»™p (merge cell) bá»‹ trá»‘ng.
- * 3) Import cho danh sÃ¡ch phá»¥ thuá»™c (RQL2, Loáº¡i YC SR) há»— trá»£ 2 kiá»ƒu file:
- *      - 2 cá»™t:  [Cáº¥p 1 | Cáº¥p 2]  (file do chÃ­nh tool Export ra)
- *      - Ma tráº­n: má»—i Cá»˜T lÃ  1 má»¥c cáº¥p 1 (á»Ÿ dÃ²ng tiÃªu Ä‘á»), cÃ¡c Ã´ bÃªn dÆ°á»›i lÃ 
- *        má»¥c cáº¥p 2 â€” Ä‘Ãºng nhÆ° cÃ¡ch báº£ng theo dÃµi khiáº¿u náº¡i trÃªn Excel Ä‘ang lÃ m.
+ * 1) Giao diện trang được JS tự dựng vào #view-workflow_setting (KHÔNG cần sửa
+ *    index.html): thêm danh mục mới chỉ cần khai báo trong SIMPLE_LISTS /
+ *    TREE_LISTS bên dưới.
+ * 2) Dữ liệu Vùng miền gọn hơn: gom theo Khu vực, mỗi khu vực là 1 khối thu
+ *    gọn/mở rộng, có ô tìm kiếm — không còn lặp tên khu vực cho từng tỉnh.
+ * 3) Sửa lỗi Import Excel Vùng miền: trước đây dùng (cell || '').trim() nên
+ *    lỗi khi ô là số, và bắt buộc tiêu đề cột phải khớp từng ký tự. Giờ nhận
+ *    diện cột linh hoạt (không phân biệt hoa thường/dấu/khoảng trắng), tự điền
+ *    xuống các ô gộp (merge cell) bị trống.
+ * 3) Import cho danh sách phụ thuộc (RQL2, Loại YC SR) hỗ trợ 2 kiểu file:
+ *      - 2 cột:  [Cấp 1 | Cấp 2]  (file do chính tool Export ra)
+ *      - Ma trận: mỗi CỘT là 1 mục cấp 1 (ở dòng tiêu đề), các ô bên dưới là
+ *        mục cấp 2 — đúng như cách bảng theo dõi khiếu nại trên Excel đang làm.
  * ============================================================================
  */
 
@@ -49,26 +49,26 @@
     'use strict';
 
     // ======================================================================
-    // KHAI BÃO DANH Má»¤C
+    // KHAI BÁO DANH MỤC
     // ======================================================================
     const SIMPLE_LISTS = [
-        { key: 'resolutions',       group: 'common',    title: 'PhÆ°Æ¡ng Ã¡n (Resolution)',     icon: 'bx-check-shield',       ph: 'TÃªn phÆ°Æ¡ng Ã¡n',                          header: 'PhÆ°Æ¡ng Ã¡n',               file: 'PhuongAn' },
-        { key: 'sources',           group: 'complaint', title: 'Nguá»“n tiáº¿p nháº­n khiáº¿u náº¡i',  icon: 'bx-inbox',              ph: 'VD: Email, MXH (Alert), Hotline',        header: 'Nguá»“n tiáº¿p nháº­n',         file: 'NguonTiepNhan' },
-        { key: 'fbAccounts',        group: 'complaint', title: 'Nick FB CSKH',               icon: 'bxl-facebook-circle',   ph: 'Nick Facebook (KV | Nick)',                 header: 'Nick FB CSKH',            file: 'NickFB_CSKH' },
-        { key: 'levels',            group: 'complaint', title: 'Cáº¥p Ä‘á»™ khiáº¿u náº¡i',           icon: 'bx-error-circle',       ph: 'VD: Cáº¥p 1, Cáº¥p 2...',                    header: 'Cáº¥p Ä‘á»™ khiáº¿u náº¡i',        file: 'CapDoKhieuNai' },
-        { key: 'handlingUnits',     group: 'complaint', title: 'ÄÆ¡n vá»‹ xá»­ lÃ½',               icon: 'bx-buildings',          ph: 'VD: SOC HTTC, SOC phá»‘i há»£p...',          header: 'ÄÆ¡n vá»‹ xá»­ lÃ½',            file: 'DonViXuLy' },
-        { key: 'vouchers',          group: 'complaint', title: 'Voucher',                    icon: 'bx-gift',               ph: 'TÃªn voucher',                            header: 'Voucher',                 file: 'Voucher' },
-        { key: 'results',           group: 'complaint', title: 'Káº¿t quáº£',                    icon: 'bx-check-circle',       ph: 'VD: ÄÃ£ xá»­ lÃ½, KhÃ´ng xá»­ lÃ½ Ä‘Æ°á»£c...',      header: 'Káº¿t quáº£',                 file: 'KetQua' },
-        { key: 'complaintServices', group: 'complaint', title: 'Loáº¡i dá»‹ch vá»¥ khiáº¿u náº¡i',     icon: 'bx-category',           ph: 'VD: Internet, Truyá»n hÃ¬nh...',           header: 'Loáº¡i dá»‹ch vá»¥ khiáº¿u náº¡i',  file: 'LoaiDichVuKhieuNai' }
+        { key: 'resolutions',       group: 'common',    title: 'Phương án (Resolution)',     icon: 'bx-check-shield',       ph: 'Tên phương án',                          header: 'Phương án',               file: 'PhuongAn' },
+        { key: 'sources',           group: 'complaint', title: 'Nguồn tiếp nhận khiếu nại',  icon: 'bx-inbox',              ph: 'VD: Email, MXH (Alert), Hotline',        header: 'Nguồn tiếp nhận',         file: 'NguonTiepNhan' },
+        { key: 'fbAccounts',        group: 'complaint', title: 'Nick FB CSKH',               icon: 'bxl-facebook-circle',   ph: 'Nick Facebook (KV | Nick)',               header: 'Nick FB CSKH',            file: 'NickFB_CSKH' },
+        { key: 'levels',            group: 'complaint', title: 'Cấp độ khiếu nại',           icon: 'bx-error-circle',       ph: 'VD: Cấp 1, Cấp 2...',                    header: 'Cấp độ khiếu nại',        file: 'CapDoKhieuNai' },
+        { key: 'handlingUnits',     group: 'complaint', title: 'Đơn vị xử lý',               icon: 'bx-buildings',          ph: 'VD: SOC HTTC, SOC phối hợp...',          header: 'Đơn vị xử lý',            file: 'DonViXuLy' },
+        { key: 'vouchers',          group: 'complaint', title: 'Voucher',                    icon: 'bx-gift',               ph: 'Tên voucher',                            header: 'Voucher',                 file: 'Voucher' },
+        { key: 'results',           group: 'complaint', title: 'Kết quả',                    icon: 'bx-check-circle',       ph: 'VD: Đã xử lý, Không xử lý được...',      header: 'Kết quả',                 file: 'KetQua' },
+        { key: 'complaintServices', group: 'complaint', title: 'Loại dịch vụ khiếu nại',     icon: 'bx-category',           ph: 'VD: Internet, Truyền hình...',           header: 'Loại dịch vụ khiếu nại',  file: 'LoaiDichVuKhieuNai' }
     ];
 
     const TREE_LISTS = [
-        { key: 'requestTypes', group: 'common',    title: 'PhÃ¢n loáº¡i RQL2',   icon: 'bx-list-ul', parentLabel: 'Loáº¡i RQL2 (cáº¥p 1)',      childLabel: 'PhÃ¢n loáº¡i (cáº¥p 2)',     headers: ['Loáº¡i RQL2', 'PhÃ¢n loáº¡i'],                         file: 'RQL2_PhanLoai' },
-        { key: 'srTypes',      group: 'complaint', title: 'Loáº¡i yÃªu cáº§u SR',  icon: 'bx-support', parentLabel: 'Loáº¡i YC SR (cáº¥p 1)',     childLabel: 'Loáº¡i YC SR (cáº¥p 2)',    headers: ['Loáº¡i YC SR (cáº¥p 1)', 'Loáº¡i YC SR (cáº¥p 2)'],       file: 'SR_LoaiYeuCau' }
+        { key: 'requestTypes', group: 'common',    title: 'Phân loại RQL2',   icon: 'bx-list-ul', parentLabel: 'Loại RQL2 (cấp 1)',      childLabel: 'Phân loại (cấp 2)',     headers: ['Loại RQL2', 'Phân loại'],                         file: 'RQL2_PhanLoai' },
+        { key: 'srTypes',      group: 'complaint', title: 'Loại yêu cầu SR',  icon: 'bx-support', parentLabel: 'Loại YC SR (cấp 1)',     childLabel: 'Loại YC SR (cấp 2)',    headers: ['Loại YC SR (cấp 1)', 'Loại YC SR (cấp 2)'],       file: 'SR_LoaiYeuCau' }
     ];
 
     const REGION_KEY = 'regions';
-    const REGION_HEADERS = ['Khu Vá»±c', 'MÃ£ Tá»‰nh/ThÃ nh', 'Tá»‰nh / ThÃ nh', 'Chi NhÃ¡nh'];
+    const REGION_HEADERS = ['Khu Vực', 'Mã Tỉnh/Thành', 'Tỉnh / Thành', 'Chi Nhánh'];
 
     const REG = {};
     SIMPLE_LISTS.forEach(c => { REG[c.key] = Object.assign({ kind: 'simple' }, c); });
@@ -84,7 +84,7 @@
     window.workflowSettings = Object.assign(defaultWF(), window.workflowSettings || {});
 
     // ======================================================================
-    // TIá»†N ÃCH
+    // TIỆN ÍCH
     // ======================================================================
     const wf = () => window.workflowSettings;
     const $ = (id) => document.getElementById(id);
@@ -94,13 +94,13 @@
     const dec = decodeURIComponent;
     const same = (a, b) => S(a).toLowerCase() === S(b).toLowerCase();
 
-    // Chuáº©n hoÃ¡ Ä‘á»ƒ so khá»›p tiÃªu Ä‘á» cá»™t / tÃ¬m kiáº¿m: bá» dáº¥u, bá» khoáº£ng tráº¯ng & kÃ½ tá»± Ä‘áº·c biá»‡t
+    // Chuẩn hoá để so khớp tiêu đề cột / tìm kiếm: bỏ dấu, bỏ khoảng trắng & ký tự đặc biệt
     function norm(s) {
-        return S(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ä‘/g, 'd').replace(/Ä/g, 'd')
+        return S(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd')
             .toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
-    // TÃ¡ch nhiá»u má»¥c trong 1 Ã´ nháº­p. LuÃ´n tÃ¡ch theo ";" vÃ  xuá»‘ng dÃ²ng; cÃ³ thá»ƒ tÃ¡ch thÃªm theo dáº¥u ","
+    // Tách nhiều mục trong 1 ô nhập. Luôn tách theo ";" và xuống dòng; có thể tách thêm theo dấu ","
     function parseMulti(str, alsoComma) {
         const re = alsoComma ? /[;,\n]+/ : /[;\n]+/;
         return S(str).split(re).map(S).filter(Boolean);
@@ -111,6 +111,9 @@
         const st = document.createElement('style');
         st.id = 'wf-style';
         st.textContent = `
+            #view-workflow_setting { font-family:'Inter', Arial, sans-serif; font-size:14px; line-height:1.5; }
+            #view-workflow_setting button, #view-workflow_setting input, #view-workflow_setting label { font-family:inherit; }
+            #view-workflow_setting .wf-card-title { font-family:inherit; font-size:15px; line-height:1.4; font-weight:600; }
             #view-workflow_setting .wf-head { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
             #view-workflow_setting .wf-head h3 { font-size:15px; display:flex; align-items:center; gap:8px; }
             #view-workflow_setting .wf-head-actions { display:flex; gap:8px; }
@@ -145,7 +148,7 @@
     }
 
     // ======================================================================
-    // Dá»°NG GIAO DIá»†N
+    // DỰNG GIAO DIỆN
     // ======================================================================
     function headHtml(key, title, icon) {
         return `<div class="wf-head">
@@ -159,11 +162,11 @@
     }
 
     function delBtnHtml(key) {
-        return `<button type="button" id="wf-del-${key}" class="btn-ghost danger wf-mini" data-act="del" data-key="${key}" style="display:none;"><i class='bx bx-trash'></i> XÃ³a má»¥c Ä‘Ã£ chá»n</button>`;
+        return `<button type="button" id="wf-del-${key}" class="btn-ghost danger wf-mini" data-act="del" data-key="${key}" style="display:none;"><i class='bx bx-trash'></i> Xóa mục đã chọn</button>`;
     }
 
     function searchHtml(key) {
-        return `<div class="wf-toolbar"><input type="text" class="form-input wf-search" data-search="${key}" placeholder="TÃ¬m kiáº¿m...">${delBtnHtml(key)}</div>`;
+        return `<div class="wf-toolbar"><input type="text" class="form-input wf-search" data-search="${key}" placeholder="Tìm kiếm...">${delBtnHtml(key)}</div>`;
     }
 
     function simpleCardHtml(c) {
@@ -172,7 +175,7 @@
             <div class="wf-body">
             <div class="input-group">
                 <input type="text" id="wf-in-${c.key}" placeholder="${esc(c.ph)}">
-                <button type="button" class="btn-primary" data-act="add" data-key="${c.key}"><i class='bx bx-plus'></i> ThÃªm</button>
+                <button type="button" class="btn-primary" data-act="add" data-key="${c.key}"><i class='bx bx-plus'></i> Thêm</button>
             </div>
             ${searchHtml(c.key)}
             <ul id="wf-list-${c.key}" class="data-list"></ul>
@@ -185,10 +188,10 @@
             ${headHtml(c.key, c.title, c.icon)}
             <div class="wf-body">
             <div class="input-group">
-                <input type="text" id="wf-p-${c.key}" list="wf-dl-${c.key}" placeholder="${esc(c.parentLabel)} â€” chá»n hoáº·c nháº­p má»›i">
+                <input type="text" id="wf-p-${c.key}" list="wf-dl-${c.key}" placeholder="${esc(c.parentLabel)} — chọn hoặc nhập mới">
                 <datalist id="wf-dl-${c.key}"></datalist>
-                <input type="text" id="wf-c-${c.key}" placeholder="${esc(c.childLabel)} â€” nhiá»u má»¥c cÃ¡ch nhau dáº¥u ;">
-                <button type="button" class="btn-primary" data-act="tree-add" data-key="${c.key}"><i class='bx bx-plus'></i> ThÃªm</button>
+                <input type="text" id="wf-c-${c.key}" placeholder="${esc(c.childLabel)} — nhiều mục cách nhau dấu ;">
+                <button type="button" class="btn-primary" data-act="tree-add" data-key="${c.key}"><i class='bx bx-plus'></i> Thêm</button>
             </div>
             ${searchHtml(c.key)}
             <div id="wf-list-${c.key}" class="wf-scroll"></div>
@@ -199,17 +202,17 @@
     function regionCardHtml() {
         const k = REGION_KEY;
         return `<div class="ai-card span-2 wf-card" id="wf-card-${k}">
-            ${headHtml(k, 'Dá»¯ liá»‡u VÃ¹ng miá»n', 'bx-map-pin')}
+            ${headHtml(k, 'Dữ liệu Vùng miền', 'bx-map-pin')}
             <div class="wf-body">
             <div class="input-group" style="margin-bottom:8px;">
-                <input type="text" id="wf-r-region" list="wf-dl-regions" placeholder="Khu Vá»±c">
+                <input type="text" id="wf-r-region" list="wf-dl-regions" placeholder="Khu Vực">
                 <datalist id="wf-dl-regions"></datalist>
-                <input type="text" id="wf-r-code" placeholder="MÃ£ Tá»‰nh (VD: HN)">
-                <input type="text" id="wf-r-name" placeholder="Tá»‰nh/ThÃ nh (VD: 01.HÃ  Ná»™i)">
+                <input type="text" id="wf-r-code" placeholder="Mã Tỉnh (VD: HN)">
+                <input type="text" id="wf-r-name" placeholder="Tỉnh/Thành (VD: 01.Hà Nội)">
             </div>
             <div class="input-group">
-                <input type="text" id="wf-r-branch" placeholder="Chi NhÃ¡nh â€” nhiá»u má»¥c cÃ¡ch nhau dáº¥u , hoáº·c ;">
-                <button type="button" class="btn-primary" data-act="region-add" data-key="${k}"><i class='bx bx-plus'></i> ThÃªm</button>
+                <input type="text" id="wf-r-branch" placeholder="Chi Nhánh — nhiều mục cách nhau dấu , hoặc ;">
+                <button type="button" class="btn-primary" data-act="region-add" data-key="${k}"><i class='bx bx-plus'></i> Thêm</button>
             </div>
             ${searchHtml(k)}
             <div id="wf-list-${k}" class="wf-scroll"></div>
@@ -232,10 +235,10 @@
 
         sec.innerHTML = `
             <div class="ai-card" style="margin-bottom:18px;">
-                <h3><i class='bx bx-slider'></i> Cáº¥u hÃ¬nh Workflow: GiÃ¡m SÃ¡t &amp; Complaint</h3>
-                <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">Thiáº¿t láº­p cÃ¡c danh má»¥c Ä‘á»™ng cho 2 module trÃªn. Má»i thay Ä‘á»•i Ä‘Æ°á»£c tá»± Ä‘á»™ng lÆ°u vÃ o Google Drive (workflow_settings.json). Import Excel: dÃ²ng 1 lÃ  tiÃªu Ä‘á» cá»™t, dÃ¹ng nÃºt Export Ä‘á»ƒ láº¥y file máº«u.</p>
+                <h3><i class='bx bx-slider'></i> Cấu hình Workflow: Giám Sát &amp; Complaint</h3>
+                <p style="font-size:13px; color:var(--text-muted); margin-top:8px;">Thiết lập các danh mục động cho 2 module trên. Mọi thay đổi được tự động lưu vào Google Drive (workflow_settings.json). Import Excel: dòng 1 là tiêu đề cột, dùng nút Export để lấy file mẫu.</p>
             </div>
-            <div class="section-label">DÃ¹ng chung â€” GiÃ¡m SÃ¡t &amp; Complaint</div>
+            <div class="section-label">Dùng chung — Giám Sát &amp; Complaint</div>
             <div class="settings-grid">${common.join('')}</div>
             <div class="section-label" style="margin-top:26px;">Complaint</div>
             <div class="settings-grid">${complaint.join('')}</div>`;
@@ -246,9 +249,9 @@
     }
 
     // ======================================================================
-    // Sá»° KIá»†N (gáº¯n 1 láº§n duy nháº¥t trÃªn section)
+    // SỰ KIỆN (gắn 1 lần duy nhất trên section)
     // ======================================================================
-    // Tráº¡ng thÃ¡i thu gá»n/má»Ÿ rá»™ng tá»«ng khá»‘i â€” nhá»› qua localStorage, máº·c Ä‘á»‹nh THU Gá»ŒN
+    // Trạng thái thu gọn/mở rộng từng khối — nhớ qua localStorage, mặc định THU GỌN
     const COLLAPSE_KEY = 'gportal_wf_open_cards';
     function openSet() {
         try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); } catch (e) { return new Set(); }
@@ -314,7 +317,7 @@
     }
 
     // ======================================================================
-    // LÆ¯U / Táº¢I DRIVE
+    // LƯU / TẢI DRIVE
     // ======================================================================
     function commit(key) {
         renderKey(key);
@@ -328,7 +331,7 @@
             const next = defaultWF();
 
             if (data) {
-                // --- requestTypes (migrate Ä‘á»‹nh dáº¡ng pháº³ng cÅ© náº¿u cÃ³) ---
+                // --- requestTypes (migrate định dạng phẳng cũ nếu có) ---
                 let rt = Array.isArray(data.requestTypes) ? data.requestTypes : [];
                 if (rt.length && typeof rt[0].subType !== 'undefined') {
                     const g = {};
@@ -341,7 +344,7 @@
                 next.srTypes = (Array.isArray(data.srTypes) ? data.srTypes : [])
                     .map(x => ({ type: S(x.type), subTypes: (x.subTypes || []).map(S).filter(Boolean) })).filter(x => x.type);
 
-                // --- regions (migrate Ä‘á»‹nh dáº¡ng pháº³ng cÅ© náº¿u cÃ³) ---
+                // --- regions (migrate định dạng phẳng cũ nếu có) ---
                 let rg = Array.isArray(data.regions) ? data.regions : [];
                 if (rg.length && typeof rg[0].branch !== 'undefined') {
                     const g = {};
@@ -357,7 +360,7 @@
                     branches: (r.branches || []).map(S).filter(Boolean)
                 })).filter(r => r.region && r.provinceCode);
 
-                // --- cÃ¡c danh sÃ¡ch Ä‘Æ¡n giáº£n ---
+                // --- các danh sách đơn giản ---
                 SIMPLE_LISTS.forEach(c => {
                     next[c.key] = (Array.isArray(data[c.key]) ? data[c.key] : [])
                         .map(x => ({ name: S(x && x.name !== undefined ? x.name : x) })).filter(x => x.name);
@@ -367,7 +370,7 @@
             Object.assign(window.workflowSettings, next);
             renderWorkflowSettingsUI();
         } catch (err) {
-            console.error('Lá»—i khi táº£i workflow settings:', err);
+            console.error('Lỗi khi tải workflow settings:', err);
         }
     };
 
@@ -376,7 +379,7 @@
         try {
             await window.saveJsonToDrive('workflow_settings.json', window.workflowSettings, window.GPORTAL_FOLDERS.settings);
         } catch (err) {
-            console.error('Lá»—i khi lÆ°u workflow settings:', err);
+            console.error('Lỗi khi lưu workflow settings:', err);
         }
     };
 
@@ -401,7 +404,7 @@
         return el ? norm(el.value) : '';
     }
 
-    // ---- Danh sÃ¡ch Ä‘Æ¡n giáº£n ----
+    // ---- Danh sách đơn giản ----
     function renderSimple(key) {
         const list = $('wf-list-' + key);
         if (!list) return;
@@ -409,8 +412,8 @@
         setBadge(key, (wf()[key] || []).length);
         const items = (wf()[key] || []).filter(x => !q || norm(`${x.kv || ''} ${x.name}`).includes(q));
         list.innerHTML = items.length
-            ? items.map(x => `<li class="data-item"><label><input type="checkbox" class="custom-chk wf-chk" data-key="${key}" data-kind="item" data-name="${enc(x.name)}" data-kv="${enc(x.kv || '')}"><span>${esc(x.kv ? `${x.kv} Â· ${x.name}` : x.name)}</span></label></li>`).join('')
-            : `<li class="wf-empty">${q ? 'KhÃ´ng tÃ¬m tháº¥y.' : 'ChÆ°a cÃ³ dá»¯ liá»‡u.'}</li>`;
+            ? items.map(x => `<li class="data-item"><label><input type="checkbox" class="custom-chk wf-chk" data-key="${key}" data-kind="item" data-name="${enc(x.name)}" data-kv="${enc(x.kv || '')}"><span>${esc(x.kv ? `${x.kv} · ${x.name}` : x.name)}</span></label></li>`).join('')
+            : `<li class="wf-empty">${q ? 'Không tìm thấy.' : 'Chưa có dữ liệu.'}</li>`;
         toggleDelBtn(key);
     }
 
@@ -418,7 +421,7 @@
         const input = $('wf-in-' + key);
         if (!input) return;
         const names = parseMulti(input.value, false);
-        if (!names.length) return alert('Vui lÃ²ng nháº­p giÃ¡ trá»‹.');
+        if (!names.length) return alert('Vui lòng nhập giá trị.');
         const arr = wf()[key];
         names.forEach(value => {
             const match = key === 'fbAccounts' ? value.match(/^(.+?)\s*\|\s*(.+)$/) : null;
@@ -430,7 +433,7 @@
         commit(key);
     }
 
-    // ---- Danh sÃ¡ch phá»¥ thuá»™c 2 cáº¥p (RQL2, Loáº¡i YC SR) ----
+    // ---- Danh sách phụ thuộc 2 cấp (RQL2, Loại YC SR) ----
     function renderTree(key) {
         const list = $('wf-list-' + key);
         if (!list) return;
@@ -441,7 +444,7 @@
         const dl = $('wf-dl-' + key);
         if (dl) dl.innerHTML = data.map(x => `<option value="${esc(x.type)}"></option>`).join('');
 
-        // Giá»¯ nguyÃªn tráº¡ng thÃ¡i má»Ÿ/Ä‘Ã³ng cá»§a tá»«ng má»¥c cha khi váº½ láº¡i
+        // Giữ nguyên trạng thái mở/đóng của từng mục cha khi vẽ lại
         const openParents = new Set(Array.from(list.querySelectorAll('details[open]')).map(d => d.dataset.p));
         let html = '';
         data.forEach(item => {
@@ -452,16 +455,16 @@
             html += `<details class="wf-region" data-p="${enc(item.type)}" ${isOpen ? 'open' : ''}>
                 <summary>
                     <input type="checkbox" class="custom-chk wf-chk" data-key="${key}" data-kind="parent" data-p="${enc(item.type)}">
-                    <span>${esc(item.type)}</span><span class="wf-count">${item.subTypes.length} má»¥c</span>
+                    <span>${esc(item.type)}</span><span class="wf-count">${item.subTypes.length} mục</span>
                 </summary>
                 <div class="wf-kids">${kids.length ? kids.map(s => `
                     <label class="wf-kid">
                         <input type="checkbox" class="custom-chk wf-chk" data-key="${key}" data-kind="child" data-p="${enc(item.type)}" data-c="${enc(s)}">
                         <span>${esc(s)}</span>
-                    </label>`).join('') : '<div class="wf-empty" style="padding:8px;">ChÆ°a cÃ³ má»¥c cáº¥p 2.</div>'}</div>
+                    </label>`).join('') : '<div class="wf-empty" style="padding:8px;">Chưa có mục cấp 2.</div>'}</div>
             </details>`;
         });
-        list.innerHTML = html || `<div class="wf-empty">${q ? 'KhÃ´ng tÃ¬m tháº¥y.' : 'ChÆ°a cÃ³ dá»¯ liá»‡u.'}</div>`;
+        list.innerHTML = html || `<div class="wf-empty">${q ? 'Không tìm thấy.' : 'Chưa có dữ liệu.'}</div>`;
         toggleDelBtn(key);
     }
 
@@ -469,14 +472,14 @@
         const cfg = REG[key];
         const p = S($('wf-p-' + key).value);
         const c = $('wf-c-' + key).value;
-        if (!p) return alert('Vui lÃ²ng nháº­p ' + cfg.parentLabel + '.');
+        if (!p) return alert('Vui lòng nhập ' + cfg.parentLabel + '.');
         mergePairs(key, parseMulti(c, false).map(x => [p, x]), p);
         $('wf-p-' + key).value = '';
         $('wf-c-' + key).value = '';
         commit(key);
     }
 
-    // pairs: [[cáº¥p1, cáº¥p2], ...]; ensureParent: táº¡o má»¥c cáº¥p 1 ká»ƒ cáº£ khi chÆ°a cÃ³ cáº¥p 2
+    // pairs: [[cấp1, cấp2], ...]; ensureParent: tạo mục cấp 1 kể cả khi chưa có cấp 2
     function mergePairs(key, pairs, ensureParent) {
         const arr = wf()[key];
         const getParent = (name) => {
@@ -492,13 +495,13 @@
         });
     }
 
-    // ---- VÃ¹ng miá»n ----
+    // ---- Vùng miền ----
     function renderRegions() {
         const box = $('wf-list-' + REGION_KEY);
         if (!box) return;
         const q = searchValue(REGION_KEY);
         const regs = wf().regions || [];
-        setBadge(REGION_KEY, regs.length + ' tá»‰nh');
+        setBadge(REGION_KEY, regs.length + ' tỉnh');
 
         const dl = $('wf-dl-regions');
         if (dl) dl.innerHTML = [...new Set(regs.map(r => r.region))].map(r => `<option value="${esc(r)}"></option>`).join('');
@@ -520,13 +523,13 @@
                 <summary>
                     <input type="checkbox" class="custom-chk wf-chk" data-key="${REGION_KEY}" data-kind="region" data-region="${enc(region)}">
                     <span>${esc(region)}</span>
-                    <span class="wf-count">${provs.length} tá»‰nh Â· ${branchTotal} chi nhÃ¡nh</span>
+                    <span class="wf-count">${provs.length} tỉnh · ${branchTotal} chi nhánh</span>
                 </summary>
                 <div class="wf-prov">${provs.map(p => `
                     <div>
                         <div class="wf-prov-head">
                             <input type="checkbox" class="custom-chk wf-chk" data-key="${REGION_KEY}" data-kind="prov" data-code="${enc(p.provinceCode)}">
-                            <b>${esc(p.provinceCode)}</b> <span>â€“ ${esc(p.provinceName)}</span> <small>(${p.branches.length} chi nhÃ¡nh)</small>
+                            <b>${esc(p.provinceCode)}</b> <span>– ${esc(p.provinceName)}</span> <small>(${p.branches.length} chi nhánh)</small>
                         </div>
                         ${p.branches.length ? `<div class="wf-chips">${p.branches.map(b => `
                             <label class="wf-chip"><input type="checkbox" class="custom-chk wf-chk" data-key="${REGION_KEY}" data-kind="branch" data-code="${enc(p.provinceCode)}" data-branch="${enc(b)}">${esc(b)}</label>`).join('')}</div>` : ''}
@@ -534,7 +537,7 @@
                 </div>
             </details>`;
         });
-        box.innerHTML = html || `<div class="wf-empty">${q ? 'KhÃ´ng tÃ¬m tháº¥y.' : 'ChÆ°a cÃ³ dá»¯ liá»‡u.'}</div>`;
+        box.innerHTML = html || `<div class="wf-empty">${q ? 'Không tìm thấy.' : 'Chưa có dữ liệu.'}</div>`;
         toggleDelBtn(REGION_KEY);
     }
 
@@ -552,21 +555,21 @@
         const region = S($('wf-r-region').value);
         const code = S($('wf-r-code').value).toUpperCase();
         const name = S($('wf-r-name').value);
-        if (!region || !code || !name) return alert('Vui lÃ²ng nháº­p Khu vá»±c, MÃ£ Tá»‰nh, Tá»‰nh/ThÃ nh.');
+        if (!region || !code || !name) return alert('Vui lòng nhập Khu vực, Mã Tỉnh, Tỉnh/Thành.');
         upsertProvince(region, code, name, parseMulti($('wf-r-branch').value, true));
         ['wf-r-region', 'wf-r-code', 'wf-r-name', 'wf-r-branch'].forEach(id => { $(id).value = ''; });
         commit(REGION_KEY);
     }
 
     // ======================================================================
-    // XOÃ CÃC Má»¤C ÄÃƒ CHá»ŒN
+    // XOÁ CÁC MỤC ĐÃ CHỌN
     // ======================================================================
     function deleteSelected(key) {
         const list = $('wf-list-' + key);
         if (!list) return;
         const checked = Array.from(list.querySelectorAll('.wf-chk:checked'));
         if (!checked.length) return;
-        if (!confirm(`XÃ³a ${checked.length} má»¥c Ä‘Ã£ chá»n?`)) return;
+        if (!confirm(`Xóa ${checked.length} mục đã chọn?`)) return;
 
         const cfg = REG[key];
         const d = wf();
@@ -651,10 +654,10 @@
                 else if (cfg.kind === 'tree') count = importTree(key, aoa);
                 else count = importRegion(aoa);
                 commit(key);
-                alert(`âœ“ ÄÃ£ import ${count} dÃ²ng dá»¯ liá»‡u.`);
+                alert(`✓ Đã import ${count} dòng dữ liệu.`);
             } catch (err) {
-                console.error('Lá»—i import Excel:', err);
-                alert('Lá»—i file Excel: ' + err.message);
+                console.error('Lỗi import Excel:', err);
+                alert('Lỗi file Excel: ' + err.message);
             } finally {
                 input.value = '';
             }
@@ -665,7 +668,7 @@
     const nonEmptyRows = (aoa) => aoa.filter(r => Array.isArray(r) && r.some(c => S(c)));
 
     function importSimple(key, aoa) {
-        const rows = nonEmptyRows(aoa).slice(1); // bá» dÃ²ng tiÃªu Ä‘á»
+        const rows = nonEmptyRows(aoa).slice(1); // bỏ dòng tiêu đề
         const arr = wf()[key];
         let n = 0;
         rows.forEach(r => {
@@ -687,7 +690,7 @@
 
         const isPairFormat = norm(head[0]) === norm(cfg.headers[0]) && norm(head[1]) === norm(cfg.headers[1]);
         if (isPairFormat) {
-            // Kiá»ƒu 2 cá»™t: [Cáº¥p 1 | Cáº¥p 2], tá»± Ä‘iá»n xuá»‘ng Ã´ gá»™p bá»‹ trá»‘ng
+            // Kiểu 2 cột: [Cấp 1 | Cấp 2], tự điền xuống ô gộp bị trống
             let lastParent = '';
             rows.slice(1).forEach(r => {
                 const p = S(r[0]) || lastParent;
@@ -695,7 +698,7 @@
                 pairs.push([p, S(r[1])]);
             });
         } else {
-            // Kiá»ƒu ma tráº­n: má»—i cá»™t lÃ  1 má»¥c cáº¥p 1 (dÃ²ng tiÃªu Ä‘á»), bÃªn dÆ°á»›i lÃ  cÃ¡c má»¥c cáº¥p 2
+            // Kiểu ma trận: mỗi cột là 1 mục cấp 1 (dòng tiêu đề), bên dưới là các mục cấp 2
             head.forEach((parent, col) => {
                 if (!parent) return;
                 pairs.push([parent, '']);
@@ -715,14 +718,14 @@
         const iName = head.findIndex((h, i) => i !== iCode && h.includes('tinh') && !h.startsWith('ma'));
         const iBr = head.findIndex(h => h.includes('chinhanh'));
         if (iReg < 0 || iCode < 0 || iName < 0) {
-            throw new Error('KhÃ´ng nháº­n diá»‡n Ä‘Æ°á»£c cá»™t. File cáº§n cÃ³ cÃ¡c cá»™t: Khu Vá»±c, MÃ£ Tá»‰nh/ThÃ nh, Tá»‰nh / ThÃ nh, Chi NhÃ¡nh (dÃ²ng 1).');
+            throw new Error('Không nhận diện được cột. File cần có các cột: Khu Vực, Mã Tỉnh/Thành, Tỉnh / Thành, Chi Nhánh (dòng 1).');
         }
 
         let lastReg = '', lastCode = '', lastName = '';
         let n = 0;
         rows.slice(1).forEach(r => {
             let reg = S(r[iReg]), code = S(r[iCode]).toUpperCase(), name = S(r[iName]);
-            // Ã” gá»™p (merge) trong Excel: cÃ¡c dÃ²ng sau bá»‹ trá»‘ng -> láº¥y láº¡i giÃ¡ trá»‹ dÃ²ng trÆ°á»›c
+            // Ô gộp (merge) trong Excel: các dòng sau bị trống -> lấy lại giá trị dòng trước
             if (!reg) reg = lastReg;
             if (!code && !name) { code = lastCode; name = lastName; }
             lastReg = reg; lastCode = code; lastName = name;
@@ -734,7 +737,7 @@
     }
 
     // ======================================================================
-    // KHá»žI Táº O
+    // KHỞI TẠO
     // ======================================================================
     document.addEventListener('DOMContentLoaded', buildUI);
 })();
