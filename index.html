@@ -232,6 +232,7 @@
                                     <tr>
                                         <th style="width:50px; position:sticky; top:0; z-index:2;">STT</th>
                                         <th style="width:120px; position:sticky; top:0; z-index:2;">Nguồn</th>
+                                        <th style="width:120px; position:sticky; top:0; z-index:2;">Trạng thái</th>
                                         <th style="width:100px; position:sticky; top:0; z-index:2;">KV</th>
                                         <th style="width:100px; position:sticky; top:0; z-index:2;">CN</th>
                                         <th style="width:120px; position:sticky; top:0; z-index:2;">SHĐ/SĐT</th>
@@ -258,7 +259,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="complaint-tbody">
-                                    <tr><td colspan="25" style="text-align:center; padding:42px; color:var(--text-muted);">Chưa có dữ liệu Complaint — bấm <strong>+ Thêm khiếu nại</strong> để bắt đầu.</td></tr>
+                                    <tr><td colspan="26" style="text-align:center; padding:42px; color:var(--text-muted);">Chưa có dữ liệu Complaint — bấm <strong>+ Thêm khiếu nại</strong> để bắt đầu.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -272,9 +273,11 @@
                                 <h3>Complaint Management</h3>
                                 <p id="complaint-modal-title">Thêm khiếu nại mới</p>
                             </div>
+                            <button type="button" id="btn-complaint-stage-next" class="btn-ghost" style="display:none;">Thông tin xử lý →</button>
                             <button type="button" id="btn-close-complaint-modal" class="btn-icon" aria-label="Đóng"><i class='bx bx-x'></i></button>
                         </div>
                         <div class="modal-body" style="max-height:75vh; overflow:auto;">
+                            <section id="complaint-stage-initial" class="complaint-stage">
                             <div class="ai-card" style="padding:14px; margin-bottom:14px;">
                                 <div class="step-head" style="margin-bottom:12px;"><span class="step-index font-mono">B1</span><span class="step-title">Paste Complaint Email / Alert Content</span></div>
                                 <textarea id="complaint-paste-text" rows="8" class="form-input" placeholder="Dán toàn bộ email alert / nội dung khiếu nại từ MXH..."></textarea>
@@ -287,34 +290,55 @@
                                 </div>
                             </div>
 
-                            <div class="complaint-form-grid">
+                            <div class="complaint-form-grid complaint-initial-grid">
                                 <div class="input-group-col"><label>Nguồn</label><select id="complaint-source" class="form-select"></select></div>
-                                <div class="input-group-col"><label>KV</label><select id="complaint-kv" class="form-select"></select></div>
-                                <div class="input-group-col"><label>CN</label><select id="complaint-cn" class="form-select"></select></div>
-                                <div class="input-group-col"><label>SHĐ/SĐT</label><input id="complaint-phone" type="text" class="form-input"></div>
-                                <div class="input-group-col"><label>Nick FTel</label><select id="complaint-ftel" class="form-select"></select></div>
-                                <div class="input-group-col"><label>Tên Nick KH &amp; Link URL Profile cá nhân hoặc Email KH</label><input id="complaint-customer" type="text" class="form-input"></div>
-                                <div class="input-group-col"><label>Link URL bài post</label><input id="complaint-post-url" type="url" class="form-input"></div>
-                                <div class="input-group-col span-2"><label>Nội dung bài viết MXH/Email</label><textarea id="complaint-content" rows="4" class="form-input"></textarea></div>
-                                <div class="input-group-col"><label>Cấp độ</label><select id="complaint-level" class="form-select"></select></div>
+                                <div class="input-group-col"><label>Tên / nickname khách hàng</label><input id="complaint-customer" type="text" class="form-input"></div>
+                                <div class="input-group-col"><label>Profile URL hoặc email khách hàng</label><input id="complaint-customer-profile" type="text" class="form-input" placeholder="Email hoặc link Facebook cá nhân"></div>
                                 <div class="input-group-col"><label>TG KH p/anh</label><input id="complaint-customer-time" type="datetime-local" class="form-input"></div>
-                                <div class="input-group-col"><label>TG nhận mail (Alert)</label><input id="complaint-alert-time" type="datetime-local" class="form-input"></div>
-                                <div class="input-group-col"><label>TG phản hồi KH lần đầu tiên</label><input id="complaint-first-reply" type="datetime-local" class="form-input"></div>
-                                <div class="input-group-col"><label>TG xử lý HT</label><input id="complaint-complete-time" type="datetime-local" class="form-input"></div>
-                                <div class="input-group-col"><label>Account Tiếp nhận</label><input id="complaint-account-receive" type="text" class="form-input" readonly></div>
-                                <div class="input-group-col"><label>Account Chủ trì</label><input id="complaint-account-lead" type="text" class="form-input" readonly></div>
-                                <div class="input-group-col"><label>Account XL cuối cùng</label><input id="complaint-account-last" type="text" class="form-input" readonly></div>
-                                <div class="input-group-col"><label>Loại YC SR (cấp 1)</label><select id="complaint-request-type-1" class="form-select"></select></div>
-                                <div class="input-group-col"><label>Loại YC SR (cấp 2)</label><select id="complaint-request-type-2" class="form-select"></select></div>
-                                <div class="input-group-col"><label>Loại dịch vụ KH khiếu nại</label><select id="complaint-service-type" class="form-select"></select></div>
-                                <div class="input-group-col"><label>MÃ SR</label><input id="complaint-sr-code" type="text" class="form-input"></div>
-                                <div class="input-group-col"><label>Đơn vị xử lý</label><select id="complaint-handling-unit" class="form-select"></select></div>
-                                <div class="input-group-col"><label>Voucher</label><select id="complaint-voucher" class="form-select"></select></div>
-                                <div class="input-group-col"><label>KQ</label><select id="complaint-result" class="form-select"></select></div>
-                                <div class="input-group-col span-2"><label>Ghi chú</label><textarea id="complaint-note" rows="3" class="form-input"></textarea></div>
+                                <div class="input-group-col"><label>Bài viết / bài báo</label><div class="complaint-post-link-row"><a id="complaint-post-link-display" class="mon-link" href="#" target="_blank" rel="noopener" style="display:none;">Xem bài viết ↗</a><span id="complaint-post-link-empty">Chưa có liên kết</span><button type="button" id="btn-edit-complaint-post-link" class="btn-ghost">Nhập / sửa liên kết</button></div><input id="complaint-post-url" type="url" class="form-input" placeholder="Dán link bài viết" style="display:none;"></div>
+                                <div class="input-group-col span-2"><label>Nội dung khiếu nại</label><textarea id="complaint-content" rows="5" class="form-input" placeholder="Dán hoặc nhập nội dung phản ánh của khách hàng"></textarea></div>
                             </div>
+                            </section>
+
+                            <section id="complaint-stage-processing" class="complaint-stage" style="display:none;">
+                                <div class="ai-card complaint-processing-card">
+                                    <div class="complaint-processing-heading"><div><span class="step-index font-mono">B2</span><h4>Thông tin xử lý</h4></div><span id="complaint-status-badge" class="complaint-status-badge">In Process</span></div>
+                                    <div class="input-group-col complaint-status-field"><label>Trạng thái</label><select id="complaint-status" class="form-select"><option>In Process</option><option>Completed</option><option>Resolved</option><option>Closed</option></select></div>
+                                    <div class="input-group-col"><label>Ghi chú xử lý — hệ thống sẽ quét thông tin khách hàng</label><textarea id="complaint-note" rows="5" class="form-input" placeholder="Nhập ghi chú xử lý, mã hợp đồng hoặc số điện thoại..."></textarea></div>
+                                    <div id="complaint-processing-detection" class="complaint-detection-grid" aria-live="polite">
+                                        <div><span>Contract Number</span><strong id="complaint-detected-contract">Chưa quét</strong></div>
+                                        <div><span>Phone Number</span><strong id="complaint-detected-phone">Chưa quét</strong></div>
+                                        <div><span>Customer Email</span><strong id="complaint-detected-email">Chưa quét</strong></div>
+                                        <div><span>Region</span><strong id="complaint-detected-region">CXD</strong></div>
+                                        <div><span>Branch</span><strong id="complaint-detected-branch">CXD</strong></div>
+                                    </div>
+                                </div>
+                                <details class="complaint-more-processing"><summary>Thông tin xử lý bổ sung</summary>
+                                    <div class="complaint-form-grid">
+                                        <div class="input-group-col"><label>KV / Region</label><select id="complaint-kv" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>CN / Branch</label><select id="complaint-cn" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>Số hợp đồng / điện thoại</label><input id="complaint-phone" type="text" class="form-input"></div>
+                                        <div class="input-group-col"><label>Nick FTel</label><select id="complaint-ftel" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>Cấp độ</label><select id="complaint-level" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>TG nhận mail (Alert)</label><input id="complaint-alert-time" type="datetime-local" class="form-input"></div>
+                                        <div class="input-group-col"><label>TG phản hồi KH lần đầu tiên</label><input id="complaint-first-reply" type="datetime-local" class="form-input"></div>
+                                        <div class="input-group-col"><label>TG xử lý HT</label><input id="complaint-complete-time" type="datetime-local" class="form-input"></div>
+                                        <div class="input-group-col"><label>Account Tiếp nhận</label><input id="complaint-account-receive" type="text" class="form-input" readonly></div>
+                                        <div class="input-group-col"><label>Account Chủ trì</label><input id="complaint-account-lead" type="text" class="form-input" readonly></div>
+                                        <div class="input-group-col"><label>Account XL cuối cùng</label><input id="complaint-account-last" type="text" class="form-input" readonly></div>
+                                        <div class="input-group-col"><label>Loại YC SR (cấp 1)</label><select id="complaint-request-type-1" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>Loại YC SR (cấp 2)</label><select id="complaint-request-type-2" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>Loại dịch vụ KH khiếu nại</label><select id="complaint-service-type" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>MÃ SR</label><input id="complaint-sr-code" type="text" class="form-input"></div>
+                                        <div class="input-group-col"><label>Đơn vị xử lý</label><select id="complaint-handling-unit" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>Voucher</label><select id="complaint-voucher" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>KQ</label><select id="complaint-result" class="form-select"></select></div>
+                                    </div>
+                                </details>
+                            </section>
                         </div>
                         <div class="modal-footer">
+                            <button type="button" id="btn-complaint-stage-back" class="btn-ghost" style="display:none;">← Thông tin khiếu nại</button>
                             <button type="button" id="btn-delete-complaint" class="btn-ghost danger" style="display:none;"><i class='bx bx-trash'></i> Xóa</button>
                             <button type="button" id="btn-save-complaint" class="btn-primary"><i class='bx bx-save'></i> Lưu</button>
                         </div>
