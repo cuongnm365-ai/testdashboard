@@ -4,6 +4,7 @@
     const TABLE_KEY = 'gportal_complaint_records_v1';
     const SHEET_ID_KEY = 'gportal_complaint_sheet_id';
     const SHEET_ROWS_KEY = 'gportal_complaint_sheet_rows_v1';
+    const COLUMN_VISIBILITY_KEY = 'gportal_complaint_visible_columns_v1';
     const SHEET_NAME = 'Complaint Management';
     const SHEET_TAB = 'Complaint';
     const SHEET_HEADERS = [
@@ -15,6 +16,12 @@
         'Account XL cuối cùng', 'Loại YC SR (cấp 1)', 'Loại YC SR (cấp 2)',
         'Loại dịch vụ KH khiếu nại', 'Ghi chú', 'Đơn vị xử lý (- SOC HTTC - Phối hợp đơn vị)',
         'Voucher', 'KQ', 'SR'
+    ];
+    const COMPLAINT_COLUMN_LABELS = [
+        'STT', 'Nguồn', 'Trạng thái', 'KV', 'CN', 'SHĐ/SĐT', 'Nick FTel', 'KH / Profile / Email',
+        'Link bài viết', 'Nội dung', 'Cấp độ', 'TG KH phản ánh', 'TG nhận mail', 'TG phản hồi đầu',
+        'TG xử lý HT', 'Account tiếp nhận', 'Account chủ trì', 'Account XL cuối', 'YC SR cấp 1',
+        'YC SR cấp 2', 'Dịch vụ KH', 'Ghi chú', 'Đơn vị xử lý', 'Voucher', 'KQ', 'SR'
     ];
     const DEFAULT_ACCOUNT = 'CuongNM3';
     const CONTRACT_PREFIXES = [
@@ -520,8 +527,14 @@
         const branchField = document.getElementById('complaint-cn');
         const branchInput = document.getElementById('complaint-cn-search');
         if (regionField && (!regionField.value || regionField.value === 'CXD' || regionField.value === previous.region)) {
+            const priorRegion = regionField.value;
             if (![...regionField.options].some((option) => option.value === detected.region)) regionField.add(new Option(detected.region, detected.region));
             regionField.value = detected.region;
+            if (priorRegion !== detected.region && branchInput?.value && !getCNOptionsByKV(detected.region).includes(branchInput.value)) {
+                setComboValue(branchField, branchInput, '');
+                const branchOrigin = document.getElementById('complaint-branch-origin');
+                if (branchOrigin) branchOrigin.textContent = 'Khu vực đã đổi · chọn chi nhánh';
+            }
         }
         const currentBranch = branchInput?.value || branchField?.value || '';
         if (branchField && (!currentBranch || currentBranch === 'CXD' || currentBranch === previous.branch)) {
@@ -907,6 +920,43 @@
         });
     }
 
+    function applyComplaintColumnVisibility() {
+        const visible = safeLocalGet(COLUMN_VISIBILITY_KEY) || {};
+        const table = document.querySelector('#view-complaint .complaint-table');
+        if (!table) return;
+        table.querySelectorAll('tr').forEach((row) => {
+            Array.from(row.children).forEach((cell, index) => {
+                if (row.children.length === 1 && cell.colSpan > 1) return;
+                cell.hidden = visible[index] === false;
+            });
+        });
+        document.querySelectorAll('#complaint-column-options input[data-column-index]').forEach((checkbox) => {
+            checkbox.checked = visible[Number(checkbox.dataset.columnIndex)] !== false;
+        });
+    }
+
+    function setupComplaintColumnVisibility() {
+        const options = document.getElementById('complaint-column-options');
+        if (!options || options.dataset.ready === '1') return;
+        options.dataset.ready = '1';
+        options.innerHTML = COMPLAINT_COLUMN_LABELS.map((label, index) => `
+            <label><input type="checkbox" data-column-index="${index}" checked><span>${escapeHtml(label)}</span></label>
+        `).join('');
+        options.querySelectorAll('input[data-column-index]').forEach((checkbox) => {
+            checkbox.addEventListener('change', () => {
+                const visible = safeLocalGet(COLUMN_VISIBILITY_KEY) || {};
+                visible[Number(checkbox.dataset.columnIndex)] = checkbox.checked;
+                safeLocalSet(COLUMN_VISIBILITY_KEY, visible);
+                applyComplaintColumnVisibility();
+            });
+        });
+        document.getElementById('btn-complaint-columns-reset')?.addEventListener('click', () => {
+            safeLocalSet(COLUMN_VISIBILITY_KEY, {});
+            applyComplaintColumnVisibility();
+        });
+        applyComplaintColumnVisibility();
+    }
+
     function applyComplaintSearch() {
         const query = normalizeText(document.getElementById('complaint-search')?.value || '').toLowerCase();
         const rows = complaintState.records.filter((item) => {
@@ -949,9 +999,9 @@
                 <td>${escapeHtml(item.cn || '—')}</td>
                 <td>${escapeHtml(item.phone || item.contractNo || '—')}</td>
                 <td>${escapeHtml(item.nickFtel || '—')}</td>
-                <td>${escapeHtml(item.customer || item.customerInfo || '—')}${item.customerProfile ? `<br>${/^https?:\/\//i.test(item.customerProfile) ? `<a href="${escapeHtml(item.customerProfile)}" target="_blank" rel="noopener" class="mon-link">Profile ↗</a>` : escapeHtml(item.customerProfile)}` : ''}</td>
-                <td>${item.postUrl ? `<a href="${escapeHtml(item.postUrl)}" target="_blank" rel="noopener" class="mon-link">Xem bài viết ↗</a>` : '—'}</td>
-                <td>${escapeHtml((item.complaintText || '').slice(0, 160) || '—')}</td>
+                <td><span class="complaint-cell-truncate" title="${escapeHtml([item.customer || item.customerInfo, item.customerProfile].filter(Boolean).join(' · '))}">${escapeHtml(item.customer || item.customerInfo || '—')}</span>${item.customerProfile ? `<span class="complaint-cell-truncate" title="${escapeHtml(item.customerProfile)}">${/^https?:\/\//i.test(item.customerProfile) ? `<a href="${escapeHtml(item.customerProfile)}" target="_blank" rel="noopener" class="mon-link">Profile ↗</a>` : escapeHtml(item.customerProfile)}</span>` : ''}</td>
+                <td>${item.postUrl ? `<a href="${escapeHtml(item.postUrl)}" target="_blank" rel="noopener" class="mon-link" title="${escapeHtml(item.postUrl)}">Xem bài viết ↗</a>` : '—'}</td>
+                <td>${item.complaintText ? `<details class="complaint-note-preview"><summary title="${escapeHtml(item.complaintText)}">${escapeHtml(item.complaintText.slice(0, 110))}${item.complaintText.length > 110 ? '…' : ''}</summary><div>${escapeHtml(item.complaintText)}</div></details>` : '—'}</td>
                 <td>${escapeHtml(item.level || '—')}</td>
                 <td>${escapeHtml(item.complaintTime ? formatShortDateTime(item.complaintTime) : '—')}</td>
                 <td>${escapeHtml(item.alertReceivedTime ? formatShortDateTime(item.alertReceivedTime) : '—')}</td>
@@ -967,7 +1017,7 @@
                 <td>${escapeHtml(item.handlingUnit || '—')}</td>
                 <td>${escapeHtml(item.voucher || '—')}</td>
                 <td>${escapeHtml(item.result || '—')}</td>
-                <td>${item.srCode ? `<a href="http://sr.fpt.net/sr/ServiceRequest/detail?code=${encodeURIComponent(item.srCode)}" target="_blank" rel="noopener" class="mon-link">${escapeHtml(item.srCode)}</a>` : '—'}</td>
+                <td>${item.srCode ? `<a href="http://sr.fpt.net/sr/ServiceRequest/detail?code=${encodeURIComponent(item.srCode)}" target="_blank" rel="noopener" class="mon-link" title="Service Request ${escapeHtml(item.srCode)}">${escapeHtml(item.srCode)}</a>` : '—'}</td>
             </tr>
         `).join('');
 
@@ -979,6 +1029,7 @@
                 if (found) showComplaintModal('edit', found);
             });
         });
+        applyComplaintColumnVisibility();
         refreshComplaintFilterOptions();
     }
 
@@ -1113,12 +1164,16 @@
         if (searchInput) searchInput.addEventListener('input', applyComplaintSearch);
 
         const filterToggle = document.getElementById('btn-complaint-filters');
-        filterToggle?.addEventListener('click', () => {
-            const panel = document.getElementById('complaint-filter-panel');
+        const columnToggle = document.getElementById('btn-complaint-columns');
+        const togglePanel = (button, panelId) => button?.addEventListener('click', () => {
+            const panel = document.getElementById(panelId);
             if (!panel) return;
             panel.hidden = !panel.hidden;
-            filterToggle.setAttribute('aria-expanded', String(!panel.hidden));
+            button.setAttribute('aria-expanded', String(!panel.hidden));
         });
+        togglePanel(filterToggle, 'complaint-filter-panel');
+        togglePanel(columnToggle, 'complaint-columns-panel');
+        setupComplaintColumnVisibility();
         Object.values(FILTER_FIELDS).forEach((id) => document.getElementById(id)?.addEventListener('change', applyComplaintSearch));
         document.getElementById('complaint-filter-date-field')?.addEventListener('change', applyComplaintSearch);
         ['complaint-filter-from', 'complaint-filter-to', 'complaint-filter-identifier', 'complaint-filter-account', 'complaint-filter-sr'].forEach((id) => {
@@ -1148,7 +1203,18 @@
             catch (error) { setComplaintSheetStatus(`Đồng bộ thất bại: ${error.message}`, true); }
         });
 
-        document.getElementById('complaint-kv')?.addEventListener('change', updateRelatedDropdowns);
+        document.getElementById('complaint-kv')?.addEventListener('change', () => {
+            const branchInput = document.getElementById('complaint-cn-search');
+            const branchSelect = document.getElementById('complaint-cn');
+            const currentBranch = branchInput?.value || branchSelect?.value || '';
+            const allowedBranches = getCNOptionsByKV(document.getElementById('complaint-kv').value);
+            if (currentBranch && !allowedBranches.includes(currentBranch)) {
+                setComboValue(branchSelect, branchInput, '');
+                const branchOrigin = document.getElementById('complaint-branch-origin');
+                if (branchOrigin) branchOrigin.textContent = 'Khu vực đã đổi · chọn chi nhánh';
+            }
+            updateRelatedDropdowns();
+        });
         document.getElementById('complaint-cn-search')?.addEventListener('input', (event) => {
             setComboValue(document.getElementById('complaint-cn'), event.target, event.target.value);
             const origin = document.getElementById('complaint-branch-origin');
@@ -1229,21 +1295,40 @@
             #view-complaint .complaint-more-processing { margin-top:14px; padding:16px; border:1px solid var(--complaint-border); border-radius:12px; background:var(--bg-secondary); }
             #view-complaint .complaint-field-origin { display:inline-block; margin-left:5px; color:#475569; font-size:11px; font-weight:500; }
             #view-complaint .complaint-post-link-row { display:flex; align-items:center; gap:10px; min-height:40px; flex-wrap:wrap; color:var(--text-muted); font-size:13px; }
+            #view-complaint textarea.form-input { min-height:72px; line-height:1.45; }
+            #view-complaint .complaint-more-processing { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+            #view-complaint .complaint-field-group { min-width:0; padding:12px; border:1px solid #d7dfeb; border-radius:10px; background:#f8fafc; }
+            #view-complaint .complaint-field-group h5 { margin:0 0 10px; color:#334155; font-size:12px; font-weight:700; letter-spacing:.01em; }
+            #view-complaint .complaint-field-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 10px; }
+            #view-complaint .complaint-field-grid .input-group-col { min-width:0; gap:3px; }
+            #view-complaint .complaint-field-grid label { min-height:17px; font-size:11.5px; }
+            #view-complaint .complaint-field-grid .form-input, #view-complaint .complaint-field-grid .form-select { padding:8px 9px; min-height:36px; }
+            #view-complaint .complaint-field-origin { display:block; margin:1px 0 0; line-height:1.2; }
             #view-complaint .complaint-filter-panel { display:grid; gap:12px; margin-top:-8px; padding:16px; }
             #view-complaint .complaint-filter-panel[hidden] { display:none; }
             #view-complaint .complaint-filter-grid { display:grid; grid-template-columns:repeat(4,minmax(145px,1fr)); gap:12px; }
             #view-complaint .complaint-filter-grid label { display:block; color:var(--text-main); font-size:12px; }
-            #view-complaint .complaint-sheet-config { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0 14px; padding:10px 12px; border:1px solid var(--complaint-border); border-radius:10px; background:var(--bg-secondary); color:var(--text-main); font-size:12px; }
+            #view-complaint .complaint-sheet-config { margin:8px 0 12px; padding:8px 12px; border:1px solid var(--complaint-border); border-radius:10px; background:var(--bg-secondary); color:var(--text-main); font-size:12px; }
+            #view-complaint .complaint-sheet-config > summary { cursor:pointer; color:#475569; font-weight:600; }
+            #view-complaint .complaint-sheet-config-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:10px; }
             #view-complaint .complaint-sheet-config .form-input { max-width:460px; margin-top:0; background:var(--bg-secondary); }
             #view-complaint #complaint-sheet-status { color:#166534; }
             #view-complaint #complaint-sheet-status.is-error { color:#b91c1c; }
-            #view-complaint .complaint-table thead th { color:#334155; background:#e9eef7; border-right:1px solid #d6deea; border-bottom:1px solid #cbd5e1; font-size:11px; line-height:1.35; white-space:normal; }
+            #view-complaint .complaint-table thead th { color:#334155; background:#e9eef7; border-right:1px solid #d6deea; border-bottom:1px solid #cbd5e1; font-size:10.5px; line-height:1.25; white-space:normal; vertical-align:middle; padding:8px 7px; }
             #view-complaint .complaint-table tbody td { border-right:1px solid #e2e8f0; border-bottom:1px solid #dbe2ec; line-height:1.45; }
             #view-complaint .complaint-table tbody tr:nth-child(even) { background:rgba(148,163,184,.06); }
             #view-complaint .complaint-table tbody tr:hover { background:rgba(2,132,199,.08); }
             #view-complaint .complaint-note-preview { max-width:250px; }
             #view-complaint .complaint-note-preview summary { overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; cursor:pointer; color:var(--text-main); }
             #view-complaint .complaint-note-preview > div { max-width:330px; max-height:180px; margin-top:6px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; padding:8px; background:var(--bg-primary); border:1px solid var(--complaint-border); border-radius:8px; }
+            #view-complaint .complaint-cell-truncate { display:block; max-width:160px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+            #view-complaint .complaint-cell-truncate + .complaint-cell-truncate { margin-top:3px; color:#475569; font-size:11px; }
+            #view-complaint .complaint-columns-panel { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-top:-8px; padding:14px; }
+            #view-complaint .complaint-columns-panel[hidden] { display:none; }
+            #view-complaint .complaint-column-options { display:grid; grid-template-columns:repeat(6,minmax(110px,1fr)); gap:7px 12px; flex:1; }
+            #view-complaint .complaint-column-options label { display:flex; align-items:center; gap:7px; color:#334155; font-size:11.5px; cursor:pointer; }
+            #view-complaint .complaint-column-options input { accent-color:#0284c7; }
+            #view-complaint .complaint-table [hidden] { display:none; }
             #view-complaint .form-input, #view-complaint .form-select { border-color:#cbd5e1; background:#fff; color:#0f172a; min-height:40px; }
             #view-complaint .form-input::placeholder { color:#64748b; opacity:1; }
             #view-complaint .form-input:focus, #view-complaint .form-select:focus { border-color:#0284c7; box-shadow:0 0 0 3px rgba(2,132,199,.14); }
@@ -1255,11 +1340,17 @@
             :root[data-theme="dark"] #view-complaint .form-input, :root[data-theme="dark"] #view-complaint .form-select { border-color:var(--border-color); background:var(--bg-primary); color:var(--text-main); }
             :root[data-theme="dark"] #view-complaint .complaint-table thead th { color:var(--text-main); background:var(--bg-elevated); border-color:var(--border-color); }
             :root[data-theme="dark"] #view-complaint .complaint-table tbody td { border-color:var(--border-color); }
+            :root[data-theme="dark"] #view-complaint .complaint-field-group { background:var(--bg-card); border-color:var(--border-color); }
+            :root[data-theme="dark"] #view-complaint .complaint-field-group h5, :root[data-theme="dark"] #view-complaint .complaint-column-options label { color:var(--text-main); }
+            :root[data-theme="dark"] #view-complaint .complaint-cell-truncate + .complaint-cell-truncate { color:var(--text-muted); }
             :root[data-theme="dark"] #view-complaint #complaint-sheet-status { color:#86efac; }
             :root[data-theme="dark"] #view-complaint #complaint-sheet-status.is-error { color:#fca5a5; }
+            :root[data-theme="dark"] #view-complaint .complaint-sheet-config > summary { color:var(--text-main); }
             @media (max-width: 900px) { #view-complaint .complaint-form-grid { grid-template-columns: 1fr; } #view-complaint .complaint-form-grid .span-2 { grid-column: span 1; } }
             @media (max-width: 900px) { #view-complaint .complaint-filter-grid { grid-template-columns:repeat(2,minmax(130px,1fr)); } }
-            @media (max-width: 640px) { #view-complaint .complaint-detection-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-processing-heading { align-items:flex-start; flex-direction:column; } #view-complaint .complaint-filter-grid { grid-template-columns:1fr; } #view-complaint .complaint-sheet-config > * { max-width:100%; } }
+            @media (max-width: 1100px) { #view-complaint .complaint-more-processing { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-column-options { grid-template-columns:repeat(4,minmax(100px,1fr)); } }
+            @media (max-width: 640px) { #view-complaint .complaint-detection-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-processing-heading { align-items:flex-start; flex-direction:column; } #view-complaint .complaint-filter-grid { grid-template-columns:1fr; } #view-complaint .complaint-more-processing { grid-template-columns:1fr; padding:10px; } #view-complaint .complaint-columns-panel { flex-direction:column; } #view-complaint .complaint-column-options { grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; } #view-complaint .complaint-sheet-config > * { max-width:100%; } }
+            @media (max-width: 480px) { #view-complaint .complaint-field-grid { grid-template-columns:1fr; } }
         `;
         document.head.appendChild(style);
     }
