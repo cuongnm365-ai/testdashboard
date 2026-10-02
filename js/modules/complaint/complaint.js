@@ -2,6 +2,20 @@
     'use strict';
 
     const TABLE_KEY = 'gportal_complaint_records_v1';
+    const SHEET_ID_KEY = 'gportal_complaint_sheet_id';
+    const SHEET_ROWS_KEY = 'gportal_complaint_sheet_rows_v1';
+    const SHEET_NAME = 'Complaint Management';
+    const SHEET_TAB = 'Complaint';
+    const SHEET_HEADERS = [
+        'STT', 'Nguồn', 'KV', 'CN', 'SHĐ/SĐT', 'Nick FTel',
+        'Tên Nick KH & Link URL Profile cá nhân hoặc Email KH',
+        'Link URL bài post (Chỉ có khi là MXH)', 'Nội dung bài viết MXH/ Email', 'Cấp độ',
+        'TG KH p/anh (FB: time post bài - Email: time KH gửi)', 'TG nhận mail (Alert)',
+        'TG phản hồi KH lần đầu tiên', 'TG xử lý HT', 'Account Tiếp nhận', 'Acount Chủ trì',
+        'Account XL cuối cùng', 'Loại YC SR (cấp 1)', 'Loại YC SR (cấp 2)',
+        'Loại dịch vụ KH khiếu nại', 'Ghi chú', 'Đơn vị xử lý (- SOC HTTC - Phối hợp đơn vị)',
+        'Voucher', 'KQ', 'SR'
+    ];
     const DEFAULT_ACCOUNT = 'CuongNM3';
     const CONTRACT_PREFIXES = [
         'HN','QN','HD','DA','NT','DN','BD','BG','BN','CB','HA','HB','LC','LS','PT','TN','TQ','VP','YB','DB','HM','HY','NA','NB','SL','TB','TH','SG','HP','BI','DK','DL','GL','HU','KT','PY','QB','QI','QA','QT','BT','LA','LD','NN','TI','AG','BL','CM','BE','CT','DT','HG','KG','ST','TG','TV','VL','LI','BK','VT','ND','HT','BP'
@@ -140,14 +154,38 @@
         else select.value = '';
     }
 
+    function fillDatalist(list, options) {
+        if (!list) return;
+        list.innerHTML = unique(options).map((value) => `<option value="${escapeHtml(value)}"></option>`).join('');
+    }
+
+    function setComboValue(select, input, value) {
+        const clean = normalizeText(value);
+        if (select && clean) {
+            if (![...select.options].some((option) => option.value === clean)) select.add(new Option(clean, clean));
+            select.value = clean;
+        } else if (select) select.value = '';
+        if (input) input.value = clean;
+    }
+
     function updateRelatedDropdowns() {
         const kv = document.getElementById('complaint-kv') ? document.getElementById('complaint-kv').value : '';
         const cnSelect = document.getElementById('complaint-cn');
         const fTelSelect = document.getElementById('complaint-ftel');
+        const cnInput = document.getElementById('complaint-cn-search');
+        const fTelInput = document.getElementById('complaint-ftel-search');
         const srType1 = document.getElementById('complaint-request-type-1') ? document.getElementById('complaint-request-type-1').value : '';
 
-        if (cnSelect) fillSelect(cnSelect, getCNOptionsByKV(kv), cnSelect.value || '');
-        if (fTelSelect) fillSelect(fTelSelect, getFTelOptionsByKV(kv), fTelSelect.value || '');
+        if (cnSelect) {
+            const current = cnInput?.value || cnSelect.value;
+            fillSelect(cnSelect, getCNOptionsByKV(kv), current || '');
+            fillDatalist(document.getElementById('complaint-cn-options'), getCNOptionsByKV(kv));
+        }
+        if (fTelSelect) {
+            const current = fTelInput?.value || fTelSelect.value;
+            fillSelect(fTelSelect, getFTelOptionsByKV(kv), current || '');
+            fillDatalist(document.getElementById('complaint-ftel-options'), getFTelOptionsByKV(kv));
+        }
 
         const request2 = document.getElementById('complaint-request-type-2');
         if (request2) fillSelect(request2, getSRType2Options(srType1), request2.value || '');
@@ -162,6 +200,7 @@
         fillSelect(document.getElementById('complaint-service-type'), getSimpleOptions('complaintServices', ['Internet', 'TV', 'Phone', 'Di động', 'Data', 'Khác']), '');
         fillSelect(document.getElementById('complaint-handling-unit'), getSimpleOptions('handlingUnits', ['SOC HTTC', 'Phối hợp đơn vị']), '');
         fillSelect(document.getElementById('complaint-voucher'), getSimpleOptions('vouchers', []), '');
+        fillDatalist(document.getElementById('complaint-voucher-options'), getSimpleOptions('vouchers', []));
         fillSelect(document.getElementById('complaint-result'), getSimpleOptions('results', ['Đã xử lý', 'Đang xử lý', 'Chưa xử lý', 'Khác']), '');
         fillSelect(document.getElementById('complaint-cn'), getCNOptionsByKV(''), '');
         fillSelect(document.getElementById('complaint-request-type-2'), [], '');
@@ -246,7 +285,16 @@
         fillSelect(fields.serviceType, serviceOptions, values.serviceType || '');
         fillSelect(fields.handlingUnit, unitOptions, values.handlingUnit || '');
         fillSelect(fields.voucher, voucherOptions, values.voucher || '');
+        setComboValue(fields.voucher, document.getElementById('complaint-voucher-search'), values.voucher || '');
+        fillDatalist(document.getElementById('complaint-voucher-options'), voucherOptions);
         fillSelect(fields.result, resultOptions, values.result || '');
+        setComboValue(fields.cn, document.getElementById('complaint-cn-search'), values.cn || '');
+        setComboValue(fields.ftel, document.getElementById('complaint-ftel-search'), values.nickFtel || '');
+        updateRelatedDropdowns();
+        const branchOrigin = document.getElementById('complaint-branch-origin');
+        const ftelOrigin = document.getElementById('complaint-ftel-origin');
+        if (branchOrigin) branchOrigin.textContent = values.cn ? 'Giá trị đã lưu · có thể sửa' : 'Chọn thủ công hoặc dùng gợi ý';
+        if (ftelOrigin) ftelOrigin.textContent = values.nickFtel ? 'Giá trị đã lưu · có thể sửa' : 'Chọn hoặc nhập tài khoản';
         if (fields.status && !Array.from(fields.status.options).some((option) => option.value === (values.status || 'In Process'))) {
             fields.status.add(new Option(values.status || 'In Process', values.status || 'In Process'));
         }
@@ -299,12 +347,26 @@
                         : /tiktok/i.test(whole) ? 'TikTok'
                             : (emailMatches.length || /\b(sent|from):/i.test(whole)) ? 'Email' : 'Other social media channels';
         const createdMatch = whole.match(/(?:Created|Published|Date|Sent)\s*:\s*(?:(\d{1,2}:\d{2})\s+)?(\d{1,2})[/-](\d{1,2})[/-](\d{4})/i);
+        const sentMatch = whole.match(/Sent\s*:\s*(?:(\d{1,2}:\d{2})\s+)?(\d{1,2})[/-](\d{1,2})[/-](\d{4})/i);
         const isoMatch = whole.match(/(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
-        const detectedTime = createdMatch
+        const detectedTime = source === 'Email' && sentMatch
+            ? `${sentMatch[4]}-${String(sentMatch[3]).padStart(2, '0')}-${String(sentMatch[2]).padStart(2, '0')}T${sentMatch[1] || '00:00'}`
+            : createdMatch
             ? `${createdMatch[4]}-${String(createdMatch[3]).padStart(2, '0')}-${String(createdMatch[2]).padStart(2, '0')}T${createdMatch[1] || '00:00'}`
             : isoMatch ? `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T${isoMatch[4]}:${isoMatch[5]}` : '';
+        const emailSentLine = lines.find((line) => /^Sent\s*:/i.test(line)) || lines.find((line) => /^Date\s*:/i.test(line));
+        const emailSentDate = emailSentLine ? new Date(emailSentLine.replace(/^(Sent|Date)\s*:\s*/i, '')) : null;
+        const complaintTime = source === 'Email' && sentMatch ? detectedTime
+            : source === 'Email' && emailSentDate && !Number.isNaN(emailSentDate.getTime()) ? toLocalInput(emailSentDate) : detectedTime || '';
+        const receivedLine = lines.find((line) => /^(Received|Alert received|Mail received|TG nhận mail)\s*:/i.test(line));
+        const receivedLocalMatch = receivedLine && receivedLine.match(/(?:(\d{1,2}:\d{2})\s+)?(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+        const receivedDate = receivedLine && !receivedLocalMatch ? new Date(receivedLine.replace(/^[^:]+:\s*/, '')) : null;
+        const alertReceivedTime = receivedLocalMatch
+            ? `${receivedLocalMatch[4]}-${String(receivedLocalMatch[3]).padStart(2, '0')}-${String(receivedLocalMatch[2]).padStart(2, '0')}T${receivedLocalMatch[1] || '00:00'}`
+            : receivedDate && !Number.isNaN(receivedDate.getTime()) ? toLocalInput(receivedDate) : '';
         const commentMatch = whole.match(/Comment\s+from\s+([^|\n<]+)(?:\s*\|\s*Facebook)?/i);
-        const nameMatch = commentMatch || whole.match(/(?:From|Sender|Author|Tên|Name|Họ tên|Customer|Khách hàng)\s*[:\-]?\s*([^\n<]+)/i);
+        const postFromMatch = whole.match(/^\s*Post\s+from\s+([^|\n<]+)/im);
+        const nameMatch = commentMatch || postFromMatch || whole.match(/(?:From|Sender|Author|Tên|Name|Họ tên|Customer|Khách hàng)\s*[:\-]?\s*([^\n<]+)/i);
         const customerName = nameMatch ? normalizeText(nameMatch[1]).replace(/\s*\|\s*Facebook.*$/i, '').replace(/\s*\|.*$/, '').trim() : '';
         const profileMatch = whole.match(/(?:Profile|URL Profile|Facebook Profile)\s*[:：]\s*(https?:\/\/[^\s]+)/i);
         const customerProfile = profileMatch ? profileMatch[1].replace(/[.,;]+$/, '') : (emailMatches[0] ? emailMatches[0][0] : '');
@@ -315,19 +377,21 @@
         const srMatch = whole.match(/\b(?:Mã\s*SR|SR\s*[:#-]?|SR\s*ID)\s*[:\-]?\s*([A-Za-z0-9-]+)/i) || whole.match(/\b(SHI-[A-Z0-9-]+)\b/i);
         const complaintLines = lines.filter((line) => !/^ALERT\b/i.test(line)
             && !/^Comment\s+from\b/i.test(line)
-            && !/^(Created|Published|Date|Sent)\s*:/i.test(line)
+            && !/^Post\s+from\b/i.test(line)
+            && !/^(Created|Published|Date|Sent|Received|Alert received|Mail received|TG nhận mail)\s*:/i.test(line)
             && !/^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(line)
             && !/^(View post|View article)\b/i.test(line));
         const complaintContent = complaintLines.join('\n').trim() || whole;
         result.detected = {
-            source, customerComplaintTime: detectedTime, customerName,
+            source, customerComplaintTime: complaintTime, alertReceivedTime, customerName,
             customerProfileUrl: profileUrl || (emailMatches[0] ? emailMatches[0][0] : ''), customerEmail: emailMatches[0] ? emailMatches[0][0] : '',
             postUrl, srCode: srMatch ? (srMatch[1] || srMatch[0]).trim() : '', complaintContent
         };
         result.confidence = {
             source: source === 'Other social media channels' ? 'low' : 'high',
-            customerComplaintTime: detectedTime ? 'high' : 'low',
-            customerName: customerName ? (commentMatch ? 'high' : 'medium') : 'low',
+            customerComplaintTime: complaintTime ? 'high' : 'low',
+            alertReceivedTime: alertReceivedTime ? 'high' : 'low',
+            customerName: customerName ? (commentMatch || postFromMatch ? 'high' : 'medium') : 'low',
             customerProfileUrl: profileUrl ? 'high' : 'low',
             postUrl: postUrl ? 'high' : 'low', srCode: srMatch ? 'high' : 'low',
             complaintContent: complaintContent ? 'high' : 'low'
@@ -454,14 +518,19 @@
         }
         const regionField = document.getElementById('complaint-kv');
         const branchField = document.getElementById('complaint-cn');
+        const branchInput = document.getElementById('complaint-cn-search');
         if (regionField && (!regionField.value || regionField.value === 'CXD' || regionField.value === previous.region)) {
             if (![...regionField.options].some((option) => option.value === detected.region)) regionField.add(new Option(detected.region, detected.region));
             regionField.value = detected.region;
         }
-        if (branchField && (!branchField.value || branchField.value === 'CXD' || branchField.value === previous.branch)) {
+        const currentBranch = branchInput?.value || branchField?.value || '';
+        if (branchField && (!currentBranch || currentBranch === 'CXD' || currentBranch === previous.branch)) {
             updateRelatedDropdowns();
             if (![...branchField.options].some((option) => option.value === detected.branch)) branchField.add(new Option(detected.branch, detected.branch));
             branchField.value = detected.branch;
+            if (branchInput) branchInput.value = detected.branch || '';
+            const branchOrigin = document.getElementById('complaint-branch-origin');
+            if (branchOrigin) branchOrigin.textContent = detected.branch ? 'Đã tự phát hiện · có thể sửa' : 'Chưa phát hiện · chọn hoặc nhập';
         }
         if (detected.srCode && !document.getElementById('complaint-sr-code').value) {
             document.getElementById('complaint-sr-code').value = detected.srCode;
@@ -479,9 +548,9 @@
         const info = {
             source: normalizeText(document.getElementById('complaint-source').value),
             kv: normalizeText(document.getElementById('complaint-kv').value),
-            cn: normalizeText(document.getElementById('complaint-cn').value),
+            cn: normalizeText(document.getElementById('complaint-cn-search')?.value || document.getElementById('complaint-cn').value),
             phone: normalizeText(document.getElementById('complaint-phone').value),
-            nickFtel: normalizeText(document.getElementById('complaint-ftel').value),
+            nickFtel: normalizeText(document.getElementById('complaint-ftel-search')?.value || document.getElementById('complaint-ftel').value),
             customer: normalizeText(document.getElementById('complaint-customer').value),
             postUrl: normalizeText(document.getElementById('complaint-post-url').value),
             complaintText: normalizeText(document.getElementById('complaint-content').value),
@@ -498,7 +567,7 @@
             serviceType: normalizeText(document.getElementById('complaint-service-type').value),
             srCode: normalizeText(document.getElementById('complaint-sr-code').value),
             handlingUnit: normalizeText(document.getElementById('complaint-handling-unit').value),
-            voucher: normalizeText(document.getElementById('complaint-voucher').value),
+            voucher: normalizeText(document.getElementById('complaint-voucher-search')?.value || document.getElementById('complaint-voucher').value),
             result: normalizeText(document.getElementById('complaint-result').value),
             note: normalizeText(document.getElementById('complaint-note').value),
             rawText: normalizeText(document.getElementById('complaint-paste-text').value)
@@ -577,7 +646,6 @@
         if (record.phone && !/^0\d{9,10}$/.test(record.phone)) errors.push('SĐT không hợp lệ.');
         if (record.srCode && !/^[A-Za-z0-9-]+$/.test(record.srCode)) errors.push('Mã SR không hợp lệ.');
         if (record.postUrl && !/^https?:\/\//i.test(record.postUrl)) errors.push('Link URL bài post không hợp lệ.');
-        if (record.kv && record.cn && !getCNOptionsByKV(record.kv).includes(record.cn)) errors.push('CN không thuộc KV đã chọn.');
         return errors;
     }
 
@@ -589,6 +657,184 @@
                 console.warn('[Complaint] Không thể lưu lên Drive:', err);
             });
         }
+    }
+
+    function complaintSheetIdFromInput(value) {
+        const text = normalizeText(value);
+        const match = text.match(/\/spreadsheets\/d\/([\w-]+)/);
+        return match ? match[1] : text;
+    }
+
+    function setComplaintSheetStatus(message, isError) {
+        const status = document.getElementById('complaint-sheet-status');
+        if (!status) return;
+        status.textContent = message;
+        status.classList.toggle('is-error', Boolean(isError));
+    }
+
+    function googleSheetsReady() {
+        return Boolean(window.AppState?.isLoggedIn && window.gapi?.client?.sheets?.spreadsheets?.values &&
+            typeof window.gapi.client.getToken === 'function' && window.gapi.client.getToken());
+    }
+
+    function columnName(number) {
+        let value = number;
+        let name = '';
+        while (value > 0) {
+            const remainder = (value - 1) % 26;
+            name = String.fromCharCode(65 + remainder) + name;
+            value = Math.floor((value - 1) / 26);
+        }
+        return name;
+    }
+
+    async function ensureComplaintSheet() {
+        if (!googleSheetsReady()) throw new Error('Đăng nhập Google để bật đồng bộ Sheets.');
+        let spreadsheetId = complaintSheetIdFromInput(document.getElementById('complaint-sheet-id')?.value || '') || localStorage.getItem(SHEET_ID_KEY) || '';
+        if (!spreadsheetId) {
+            const found = await gapi.client.drive.files.list({
+                q: `name='${SHEET_NAME}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+                spaces: 'drive', fields: 'files(id,name)', pageSize: 20
+            });
+            const files = found.result.files || [];
+            if (files.length === 1) spreadsheetId = files[0].id;
+            else if (files.length > 1) throw new Error('Có nhiều Sheet tên Complaint Management. Hãy dán URL/ID Sheet cần dùng.');
+        }
+        if (!spreadsheetId) {
+            const created = await gapi.client.sheets.spreadsheets.create({
+                resource: { properties: { title: SHEET_NAME }, sheets: [{ properties: { title: SHEET_TAB } }] }
+            });
+            spreadsheetId = created.result.spreadsheetId;
+        }
+        const metadata = await gapi.client.sheets.spreadsheets.get({
+            spreadsheetId, fields: 'spreadsheetId,sheets.properties(title,sheetId)'
+        });
+        const sheetList = metadata.result.sheets || [];
+        let tab = sheetList.find((sheet) => sheet.properties.title === SHEET_TAB) || sheetList[0];
+        if (!tab) {
+            const added = await gapi.client.sheets.spreadsheets.batchUpdate({
+                spreadsheetId, resource: { requests: [{ addSheet: { properties: { title: SHEET_TAB } } }] }
+            });
+            tab = added.result.replies[0].addSheet;
+        }
+        const range = `'${String(tab.properties.title).replace(/'/g, "''")}'!A1:ZZ1`;
+        const values = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId, range });
+        let headers = (values.result.values && values.result.values[0] || []).map((value) => String(value || '').trim());
+        if (!headers.some(Boolean)) {
+            await gapi.client.sheets.spreadsheets.values.update({
+                spreadsheetId, range: `'${String(tab.properties.title).replace(/'/g, "''")}'!A1`, valueInputOption: 'RAW',
+                resource: { values: [SHEET_HEADERS] }
+            });
+            headers = SHEET_HEADERS.slice();
+        }
+        const missing = SHEET_HEADERS.filter((header) => !headers.includes(header));
+        if (missing.length) throw new Error(`Hàng tiêu đề Sheet chưa khớp. Thiếu cột: ${missing.join(' | ')}`);
+        localStorage.setItem(SHEET_ID_KEY, spreadsheetId);
+        const input = document.getElementById('complaint-sheet-id');
+        if (input) input.value = spreadsheetId;
+        return { spreadsheetId, tab: tab.properties.title, headers };
+    }
+
+    function complaintSheetRow(record, headers, stt) {
+        const profile = normalizeText(record.customerProfile || record.customerEmail);
+        const customer = [normalizeText(record.customer || record.customerInfo), profile].filter(Boolean).join('\n');
+        const valuesByHeader = {
+            'STT': stt,
+            'Nguồn': record.source,
+            'KV': record.kv,
+            'CN': record.cn,
+            'SHĐ/SĐT': record.contractNo || record.phone,
+            'Nick FTel': record.nickFtel,
+            'Tên Nick KH & Link URL Profile cá nhân hoặc Email KH': customer,
+            'Link URL bài post (Chỉ có khi là MXH)': record.postUrl,
+            'Nội dung bài viết MXH/ Email': record.complaintText,
+            'Cấp độ': record.level,
+            'TG KH p/anh (FB: time post bài - Email: time KH gửi)': record.complaintTime,
+            'TG nhận mail (Alert)': record.alertReceivedTime,
+            'TG phản hồi KH lần đầu tiên': record.firstReplyTime,
+            'TG xử lý HT': record.handlingCompletedTime,
+            'Account Tiếp nhận': record.accountReceive,
+            'Acount Chủ trì': record.accountLead,
+            'Account XL cuối cùng': record.accountLast,
+            'Loại YC SR (cấp 1)': record.requestType1,
+            'Loại YC SR (cấp 2)': record.requestType2,
+            'Loại dịch vụ KH khiếu nại': record.serviceType,
+            'Ghi chú': record.note,
+            'Đơn vị xử lý (- SOC HTTC - Phối hợp đơn vị)': record.handlingUnit,
+            'Voucher': record.voucher,
+            'KQ': record.result,
+            'SR': record.srCode
+        };
+        return headers.map((header) => valuesByHeader[header] == null ? '' : String(valuesByHeader[header]));
+    }
+
+    function complaintSheetFingerprint(record) {
+        return [
+            record.source,
+            [normalizeText(record.customer || record.customerInfo), normalizeText(record.customerProfile || record.customerEmail)].filter(Boolean).join('\n'),
+            record.postUrl, record.complaintText, record.complaintTime
+        ].map((value) => normalizeText(value)).join('\u001f');
+    }
+
+    function sheetRowFingerprint(row, headers) {
+        const index = (name) => headers.indexOf(name);
+        const customer = row[index('Tên Nick KH & Link URL Profile cá nhân hoặc Email KH')] || '';
+        return [
+            row[index('Nguồn')] || '', customer,
+            row[index('Link URL bài post (Chỉ có khi là MXH)')] || '',
+            row[index('Nội dung bài viết MXH/ Email')] || '',
+            row[index('TG KH p/anh (FB: time post bài - Email: time KH gửi)')] || ''
+        ].map((value) => normalizeText(value)).join('\u001f');
+    }
+
+    async function syncComplaintRecord(record) {
+        const sheet = await ensureComplaintSheet();
+        const safeTab = `'${sheet.tab.replace(/'/g, "''")}'`;
+        const savedRows = safeLocalGet(SHEET_ROWS_KEY) || {};
+        const previousSync = savedRows[record.id];
+        let rowNumber = previousSync && previousSync.spreadsheetId === sheet.spreadsheetId ? Number(previousSync.row) || 0 : 0;
+        const sheetColumn = columnName(sheet.headers.length);
+        if (rowNumber > 1) {
+            const existing = await gapi.client.sheets.spreadsheets.values.get({
+                spreadsheetId: sheet.spreadsheetId, range: `${safeTab}!A${rowNumber}:${sheetColumn}${rowNumber}`, valueRenderOption: 'UNFORMATTED_VALUE'
+            });
+            const actualFingerprint = sheetRowFingerprint((existing.result.values || [])[0] || [], sheet.headers);
+            if (previousSync.fingerprint && previousSync.fingerprint === actualFingerprint) {
+                await gapi.client.sheets.spreadsheets.values.update({
+                    spreadsheetId: sheet.spreadsheetId, range: `${safeTab}!A${rowNumber}:${sheetColumn}${rowNumber}`,
+                    valueInputOption: 'RAW', resource: { values: [complaintSheetRow(record, sheet.headers, rowNumber - 1)] }
+                });
+                savedRows[record.id] = { spreadsheetId: sheet.spreadsheetId, row: rowNumber, fingerprint: complaintSheetFingerprint(record) };
+                safeLocalSet(SHEET_ROWS_KEY, savedRows);
+                setComplaintSheetStatus(`Đã đồng bộ · dòng ${rowNumber}`, false);
+                return;
+            }
+            rowNumber = 0;
+        }
+        if (!rowNumber) {
+            const current = await gapi.client.sheets.spreadsheets.values.get({
+                spreadsheetId: sheet.spreadsheetId, range: `${safeTab}!A2:${sheetColumn}`, valueRenderOption: 'UNFORMATTED_VALUE'
+            });
+            const existingRows = current.result.values || [];
+            const nextStt = existingRows.reduce((maximum, row) => Math.max(maximum, Number(row[0]) || 0), 0) + 1;
+            const fallbackRowNumber = existingRows.length + 2;
+            const response = await gapi.client.sheets.spreadsheets.values.append({
+                spreadsheetId: sheet.spreadsheetId, range: `${safeTab}!A:${sheetColumn}`, valueInputOption: 'RAW',
+                insertDataOption: 'INSERT_ROWS', resource: { values: [complaintSheetRow(record, sheet.headers, nextStt)] }
+            });
+            const updatedRange = response.result.updatedRange || '';
+            const matchedRow = updatedRange.match(/![A-Z]+(\d+):/i);
+            rowNumber = matchedRow ? Number(matchedRow[1]) : fallbackRowNumber;
+            savedRows[record.id] = { spreadsheetId: sheet.spreadsheetId, row: rowNumber, fingerprint: complaintSheetFingerprint(record) };
+            safeLocalSet(SHEET_ROWS_KEY, savedRows);
+        }
+        setComplaintSheetStatus(`Đã đồng bộ · dòng ${rowNumber}`, false);
+    }
+
+    async function syncComplaintRecords() {
+        const records = complaintState.records.slice().reverse();
+        if (!records.length) return;
+        for (const record of records) await syncComplaintRecord(record);
     }
 
     async function loadComplaintState() {
@@ -612,9 +858,9 @@
 
     function clearComplaintForm() {
         const formIds = [
-            'complaint-source', 'complaint-kv', 'complaint-cn', 'complaint-phone', 'complaint-ftel', 'complaint-customer', 'complaint-customer-profile', 'complaint-post-url', 'complaint-content',
+            'complaint-source', 'complaint-kv', 'complaint-cn', 'complaint-cn-search', 'complaint-phone', 'complaint-ftel', 'complaint-ftel-search', 'complaint-customer', 'complaint-customer-profile', 'complaint-post-url', 'complaint-content',
             'complaint-level', 'complaint-customer-time', 'complaint-alert-time', 'complaint-first-reply', 'complaint-complete-time', 'complaint-account-receive', 'complaint-account-lead', 'complaint-account-last',
-            'complaint-request-type-1', 'complaint-request-type-2', 'complaint-service-type', 'complaint-sr-code', 'complaint-handling-unit', 'complaint-voucher', 'complaint-result', 'complaint-note', 'complaint-paste-text'
+            'complaint-request-type-1', 'complaint-request-type-2', 'complaint-service-type', 'complaint-sr-code', 'complaint-handling-unit', 'complaint-voucher', 'complaint-voucher-search', 'complaint-result', 'complaint-note', 'complaint-paste-text'
         ];
         formIds.forEach((id) => {
             const node = document.getElementById(id);
@@ -628,17 +874,57 @@
         complaintState.detected = null;
         const status = document.getElementById('complaint-status');
         if (status) status.value = 'In Process';
+        const statusBadge = document.getElementById('complaint-status-badge');
+        if (statusBadge) statusBadge.textContent = 'In Process';
         const postUrl = document.getElementById('complaint-post-url');
         if (postUrl) postUrl.style.display = 'none';
         fillSelect(document.getElementById('complaint-request-type-2'), [], '');
         updatePostLinkDisplay();
         updateProcessingDetection('', false);
+        const branchOrigin = document.getElementById('complaint-branch-origin');
+        const ftelOrigin = document.getElementById('complaint-ftel-origin');
+        if (branchOrigin) branchOrigin.textContent = 'Chọn thủ công hoặc dùng gợi ý';
+        if (ftelOrigin) ftelOrigin.textContent = 'Chọn hoặc nhập tài khoản';
         setComplaintStage('initial');
+    }
+
+    const FILTER_FIELDS = {
+        source: 'complaint-filter-source', kv: 'complaint-filter-kv', cn: 'complaint-filter-cn',
+        nickFtel: 'complaint-filter-ftel', level: 'complaint-filter-level', status: 'complaint-filter-status',
+        requestType1: 'complaint-filter-request1', requestType2: 'complaint-filter-request2',
+        serviceType: 'complaint-filter-service', handlingUnit: 'complaint-filter-unit',
+        voucher: 'complaint-filter-voucher', result: 'complaint-filter-result'
+    };
+
+    function refreshComplaintFilterOptions() {
+        Object.entries(FILTER_FIELDS).forEach(([field, id]) => {
+            const select = document.getElementById(id);
+            if (!select) return;
+            const selected = select.value;
+            const options = unique(complaintState.records.map((record) => record[field]).filter(Boolean)).sort((a, b) => String(a).localeCompare(String(b), 'vi'));
+            select.innerHTML = '<option value="">Tất cả</option>' + options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('');
+            select.value = options.includes(selected) ? selected : '';
+        });
     }
 
     function applyComplaintSearch() {
         const query = normalizeText(document.getElementById('complaint-search')?.value || '').toLowerCase();
         const rows = complaintState.records.filter((item) => {
+            const categoryMatches = Object.entries(FILTER_FIELDS).every(([field, id]) => {
+                const value = document.getElementById(id)?.value || '';
+                return !value || String(item[field] || '') === value;
+            });
+            const dateField = document.getElementById('complaint-filter-date-field')?.value || 'complaintTime';
+            const complaintDate = String(item[dateField] || '').slice(0, 10);
+            const from = document.getElementById('complaint-filter-from')?.value || '';
+            const to = document.getElementById('complaint-filter-to')?.value || '';
+            if (!categoryMatches || (from && (!complaintDate || complaintDate < from)) || (to && (!complaintDate || complaintDate > to))) return false;
+            const identifier = normalizeText(document.getElementById('complaint-filter-identifier')?.value || '').toLowerCase();
+            const account = normalizeText(document.getElementById('complaint-filter-account')?.value || '').toLowerCase();
+            const sr = normalizeText(document.getElementById('complaint-filter-sr')?.value || '').toLowerCase();
+            if (identifier && !String(item.contractNo || item.phone || '').toLowerCase().includes(identifier)) return false;
+            if (account && ![item.accountReceive, item.accountLead, item.accountLast].join(' ').toLowerCase().includes(account)) return false;
+            if (sr && !String(item.srCode || '').toLowerCase().includes(sr)) return false;
             if (!query) return true;
             const haystack = [
                 item.source, item.status, item.customerProfile, item.kv, item.cn, item.phone, item.contractNo, item.nickFtel, item.customer, item.customerInfo, item.postUrl, item.complaintText,
@@ -677,7 +963,7 @@
                 <td>${escapeHtml(item.requestType1 || '—')}</td>
                 <td>${escapeHtml(item.requestType2 || '—')}</td>
                 <td>${escapeHtml(item.serviceType || '—')}</td>
-                <td>${escapeHtml(item.note || '—')}</td>
+                <td>${item.note ? `<details class="complaint-note-preview"><summary>${escapeHtml(item.note.slice(0, 90))}${item.note.length > 90 ? '…' : ''}</summary><div>${escapeHtml(item.note)}</div></details>` : '—'}</td>
                 <td>${escapeHtml(item.handlingUnit || '—')}</td>
                 <td>${escapeHtml(item.voucher || '—')}</td>
                 <td>${escapeHtml(item.result || '—')}</td>
@@ -686,12 +972,14 @@
         `).join('');
 
         tbody.querySelectorAll('tr[data-id]').forEach((row) => {
-            row.addEventListener('click', () => {
+            row.addEventListener('click', (event) => {
                 const targetId = row.getAttribute('data-id');
                 const found = complaintState.records.find((item) => item.id === targetId);
+                if (event.target.closest('a, details, button')) return;
                 if (found) showComplaintModal('edit', found);
             });
         });
+        refreshComplaintFilterOptions();
     }
 
     function renderComplaintTable() {
@@ -725,6 +1013,7 @@
             ['complaint-customer-profile', parsed.detected.customerProfileUrl, 'customerProfileUrl'],
             ['complaint-post-url', parsed.detected.postUrl, 'postUrl'],
             ['complaint-customer-time', toLocalInput(parsed.detected.customerComplaintTime || ''), 'customerComplaintTime'],
+            ['complaint-alert-time', toLocalInput(parsed.detected.alertReceivedTime || ''), 'alertReceivedTime'],
             ['complaint-content', parsed.detected.complaintContent || text, 'complaintContent']
         ];
         const eligiblePairs = fieldPairs.filter(([, value, confidenceKey]) => value && (confidenceRank[parsed.confidence[confidenceKey] || 'low'] >= confidenceRank.medium));
@@ -793,7 +1082,7 @@
             renderComplaintTable();
             closeComplaintModal();
         });
-        if (saveBtn) saveBtn.addEventListener('click', () => {
+        if (saveBtn) saveBtn.addEventListener('click', async () => {
             if (complaintState.stage === 'processing') {
                 updateProcessingDetection(document.getElementById('complaint-note').value, true);
             }
@@ -806,6 +1095,8 @@
             if (complaintState.stage === 'initial' && !complaintState.editingId) {
                 const created = addOrUpdateComplaintRow(true);
                 complaintState.editingId = created.id;
+                try { await syncComplaintRecord(created); }
+                catch (error) { setComplaintSheetStatus(`Đã lưu nội bộ · Sheet chưa đồng bộ: ${error.message}`, true); }
                 document.getElementById('complaint-account-receive').value = created.accountReceive || DEFAULT_ACCOUNT;
                 document.getElementById('complaint-account-lead').value = created.accountLead || DEFAULT_ACCOUNT;
                 document.getElementById('complaint-account-last').value = created.accountLast || DEFAULT_ACCOUNT;
@@ -814,12 +1105,65 @@
                 setComplaintStage('processing');
                 updateProcessingDetection(document.getElementById('complaint-note').value, false);
             } else {
-                addOrUpdateComplaintRow(false);
+                const saved = addOrUpdateComplaintRow(false);
+                try { await syncComplaintRecord(saved); }
+                catch (error) { setComplaintSheetStatus(`Đã lưu nội bộ · Sheet chưa đồng bộ: ${error.message}`, true); }
             }
         });
         if (searchInput) searchInput.addEventListener('input', applyComplaintSearch);
 
+        const filterToggle = document.getElementById('btn-complaint-filters');
+        filterToggle?.addEventListener('click', () => {
+            const panel = document.getElementById('complaint-filter-panel');
+            if (!panel) return;
+            panel.hidden = !panel.hidden;
+            filterToggle.setAttribute('aria-expanded', String(!panel.hidden));
+        });
+        Object.values(FILTER_FIELDS).forEach((id) => document.getElementById(id)?.addEventListener('change', applyComplaintSearch));
+        document.getElementById('complaint-filter-date-field')?.addEventListener('change', applyComplaintSearch);
+        ['complaint-filter-from', 'complaint-filter-to', 'complaint-filter-identifier', 'complaint-filter-account', 'complaint-filter-sr'].forEach((id) => {
+            document.getElementById(id)?.addEventListener('input', applyComplaintSearch);
+            document.getElementById(id)?.addEventListener('change', applyComplaintSearch);
+        });
+        document.getElementById('btn-complaint-filter-clear')?.addEventListener('click', () => {
+            Object.values(FILTER_FIELDS).forEach((id) => { const input = document.getElementById(id); if (input) input.value = ''; });
+            ['complaint-filter-from', 'complaint-filter-to', 'complaint-filter-identifier', 'complaint-filter-account', 'complaint-filter-sr'].forEach((id) => {
+                const input = document.getElementById(id); if (input) input.value = '';
+            });
+            applyComplaintSearch();
+        });
+
+        const sheetInput = document.getElementById('complaint-sheet-id');
+        if (sheetInput) sheetInput.value = localStorage.getItem(SHEET_ID_KEY) || '';
+        document.getElementById('btn-complaint-sheet-save')?.addEventListener('click', () => {
+            const id = complaintSheetIdFromInput(sheetInput?.value || '');
+            if (!id) { alert('Dán URL hoặc ID Google Sheet trước khi lưu.'); return; }
+            localStorage.setItem(SHEET_ID_KEY, id);
+            if (sheetInput) sheetInput.value = id;
+            setComplaintSheetStatus('Đã lưu cấu hình Sheet', false);
+        });
+        document.getElementById('btn-complaint-sheet-sync')?.addEventListener('click', async () => {
+            setComplaintSheetStatus('Đang đồng bộ…', false);
+            try { await syncComplaintRecords(); }
+            catch (error) { setComplaintSheetStatus(`Đồng bộ thất bại: ${error.message}`, true); }
+        });
+
         document.getElementById('complaint-kv')?.addEventListener('change', updateRelatedDropdowns);
+        document.getElementById('complaint-cn-search')?.addEventListener('input', (event) => {
+            setComboValue(document.getElementById('complaint-cn'), event.target, event.target.value);
+            const origin = document.getElementById('complaint-branch-origin');
+            if (origin) origin.textContent = complaintState.detected?.branch === event.target.value ? 'Đã tự phát hiện · có thể sửa' : 'Đã chọn thủ công';
+            const detected = document.getElementById('complaint-detected-branch');
+            if (detected && event.target.value) detected.textContent = event.target.value;
+        });
+        document.getElementById('complaint-ftel-search')?.addEventListener('input', (event) => {
+            setComboValue(document.getElementById('complaint-ftel'), event.target, event.target.value);
+            const origin = document.getElementById('complaint-ftel-origin');
+            if (origin) origin.textContent = 'Đã nhập/chọn thủ công';
+        });
+        document.getElementById('complaint-voucher-search')?.addEventListener('input', (event) => {
+            setComboValue(document.getElementById('complaint-voucher'), event.target, event.target.value);
+        });
         document.getElementById('complaint-source')?.addEventListener('change', () => {
             const sourceValue = document.getElementById('complaint-source').value;
             if (sourceValue && !document.getElementById('complaint-content').value.trim()) {
@@ -865,11 +1209,12 @@
         const style = document.createElement('style');
         style.id = 'complaint-style';
         style.textContent = `
+            #view-complaint { --complaint-muted: var(--text-muted); --complaint-border: var(--border-color); }
             #view-complaint .complaint-form-grid { display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 14px; }
             #view-complaint .complaint-form-grid .span-2 { grid-column: span 2; }
             #view-complaint .complaint-modal-card { overflow: hidden; }
             #view-complaint .modal-body .input-group-col { display:flex; flex-direction:column; gap:6px; }
-            #view-complaint .modal-body label { font-size:12px; color: var(--text-muted); }
+            #view-complaint .modal-body label { font-size:12.5px; color: var(--complaint-muted); font-weight:600; line-height:1.4; }
             #view-complaint .mon-link { color: var(--accent); }
             #view-complaint .complaint-processing-card { display:flex; flex-direction:column; gap:14px; padding:18px; }
             #view-complaint .complaint-processing-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
@@ -881,11 +1226,40 @@
             #view-complaint .complaint-detection-grid > div { min-width:0; padding:12px; border:1px solid var(--border-color); border-radius:10px; background:var(--bg-primary); display:flex; flex-direction:column; gap:6px; }
             #view-complaint .complaint-detection-grid span { color:var(--text-muted); font-size:11px; }
             #view-complaint .complaint-detection-grid strong { overflow-wrap:anywhere; font-size:13px; }
-            #view-complaint .complaint-more-processing { margin-top:14px; padding:14px; border:1px solid var(--border-color); border-radius:10px; }
-            #view-complaint .complaint-more-processing summary { cursor:pointer; color:var(--text-muted); font-size:13px; font-weight:600; margin-bottom:12px; }
+            #view-complaint .complaint-more-processing { margin-top:14px; padding:16px; border:1px solid var(--complaint-border); border-radius:12px; background:var(--bg-secondary); }
+            #view-complaint .complaint-field-origin { display:inline-block; margin-left:5px; color:#475569; font-size:11px; font-weight:500; }
             #view-complaint .complaint-post-link-row { display:flex; align-items:center; gap:10px; min-height:40px; flex-wrap:wrap; color:var(--text-muted); font-size:13px; }
+            #view-complaint .complaint-filter-panel { display:grid; gap:12px; margin-top:-8px; padding:16px; }
+            #view-complaint .complaint-filter-panel[hidden] { display:none; }
+            #view-complaint .complaint-filter-grid { display:grid; grid-template-columns:repeat(4,minmax(145px,1fr)); gap:12px; }
+            #view-complaint .complaint-filter-grid label { display:block; color:var(--text-main); font-size:12px; }
+            #view-complaint .complaint-sheet-config { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0 14px; padding:10px 12px; border:1px solid var(--complaint-border); border-radius:10px; background:var(--bg-secondary); color:var(--text-main); font-size:12px; }
+            #view-complaint .complaint-sheet-config .form-input { max-width:460px; margin-top:0; background:var(--bg-secondary); }
+            #view-complaint #complaint-sheet-status { color:#166534; }
+            #view-complaint #complaint-sheet-status.is-error { color:#b91c1c; }
+            #view-complaint .complaint-table thead th { color:#334155; background:#e9eef7; border-right:1px solid #d6deea; border-bottom:1px solid #cbd5e1; font-size:11px; line-height:1.35; white-space:normal; }
+            #view-complaint .complaint-table tbody td { border-right:1px solid #e2e8f0; border-bottom:1px solid #dbe2ec; line-height:1.45; }
+            #view-complaint .complaint-table tbody tr:nth-child(even) { background:rgba(148,163,184,.06); }
+            #view-complaint .complaint-table tbody tr:hover { background:rgba(2,132,199,.08); }
+            #view-complaint .complaint-note-preview { max-width:250px; }
+            #view-complaint .complaint-note-preview summary { overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; cursor:pointer; color:var(--text-main); }
+            #view-complaint .complaint-note-preview > div { max-width:330px; max-height:180px; margin-top:6px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; padding:8px; background:var(--bg-primary); border:1px solid var(--complaint-border); border-radius:8px; }
+            #view-complaint .form-input, #view-complaint .form-select { border-color:#cbd5e1; background:#fff; color:#0f172a; min-height:40px; }
+            #view-complaint .form-input::placeholder { color:#64748b; opacity:1; }
+            #view-complaint .form-input:focus, #view-complaint .form-select:focus { border-color:#0284c7; box-shadow:0 0 0 3px rgba(2,132,199,.14); }
+            #view-complaint .form-input:disabled, #view-complaint .form-select:disabled { color:#475569; background:#e2e8f0; opacity:1; }
+            :root[data-theme="light"] #view-complaint .complaint-detection-grid > div { background:#fff; border-color:#cbd5e1; }
+            :root[data-theme="light"] #view-complaint .complaint-detection-grid span { color:#475569; }
+            :root[data-theme="light"] #view-complaint .complaint-status-badge, :root[data-theme="light"] #view-complaint .complaint-table-status { color:#075985; background:#e0f2fe; }
+            :root[data-theme="dark"] #view-complaint .complaint-field-origin { color:#b6c2d9; }
+            :root[data-theme="dark"] #view-complaint .form-input, :root[data-theme="dark"] #view-complaint .form-select { border-color:var(--border-color); background:var(--bg-primary); color:var(--text-main); }
+            :root[data-theme="dark"] #view-complaint .complaint-table thead th { color:var(--text-main); background:var(--bg-elevated); border-color:var(--border-color); }
+            :root[data-theme="dark"] #view-complaint .complaint-table tbody td { border-color:var(--border-color); }
+            :root[data-theme="dark"] #view-complaint #complaint-sheet-status { color:#86efac; }
+            :root[data-theme="dark"] #view-complaint #complaint-sheet-status.is-error { color:#fca5a5; }
             @media (max-width: 900px) { #view-complaint .complaint-form-grid { grid-template-columns: 1fr; } #view-complaint .complaint-form-grid .span-2 { grid-column: span 1; } }
-            @media (max-width: 640px) { #view-complaint .complaint-detection-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-processing-heading { align-items:flex-start; flex-direction:column; } }
+            @media (max-width: 900px) { #view-complaint .complaint-filter-grid { grid-template-columns:repeat(2,minmax(130px,1fr)); } }
+            @media (max-width: 640px) { #view-complaint .complaint-detection-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } #view-complaint .complaint-processing-heading { align-items:flex-start; flex-direction:column; } #view-complaint .complaint-filter-grid { grid-template-columns:1fr; } #view-complaint .complaint-sheet-config > * { max-width:100%; } }
         `;
         document.head.appendChild(style);
     }

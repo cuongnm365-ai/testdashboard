@@ -221,8 +221,40 @@
                         </div>
                         <div class="toolbar-right" style="gap:8px;">
                             <input id="complaint-search" type="text" class="form-input" placeholder="Tìm kiếm Complaint..." style="min-width:240px;">
+                            <button id="btn-complaint-filters" class="btn-ghost" type="button" aria-expanded="false">Bộ lọc</button>
                             <span id="complaint-count-badge" class="tag" style="font-size:12px;">0 bản ghi</span>
                         </div>
+                    </div>
+
+                    <div id="complaint-filter-panel" class="ai-card complaint-filter-panel" hidden>
+                        <div class="complaint-filter-grid">
+                            <label>Nguồn<select id="complaint-filter-source" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>KV<select id="complaint-filter-kv" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>CN<select id="complaint-filter-cn" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>Nick FTel<select id="complaint-filter-ftel" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>Cấp độ<select id="complaint-filter-level" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>Trạng thái<select id="complaint-filter-status" class="form-select"><option value="">Tất cả</option><option>In Process</option><option>Completed</option><option>Resolved</option><option>Closed</option></select></label>
+                            <label>YC SR cấp 1<select id="complaint-filter-request1" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>YC SR cấp 2<select id="complaint-filter-request2" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>Dịch vụ<select id="complaint-filter-service" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>Đơn vị xử lý<select id="complaint-filter-unit" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>Voucher<select id="complaint-filter-voucher" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>KQ<select id="complaint-filter-result" class="form-select"><option value="">Tất cả</option></select></label>
+                            <label>Khoảng ngày áp dụng cho<select id="complaint-filter-date-field" class="form-select"><option value="complaintTime">TG KH p/anh</option><option value="alertReceivedTime">TG nhận mail</option><option value="firstReplyTime">TG phản hồi lần đầu</option><option value="handlingCompletedTime">TG xử lý HT</option></select></label>
+                            <label>Từ ngày<input id="complaint-filter-from" class="form-input" type="date"></label>
+                            <label>Đến ngày<input id="complaint-filter-to" class="form-input" type="date"></label>
+                            <label>SHĐ/SĐT<input id="complaint-filter-identifier" class="form-input" type="search" placeholder="Tìm một phần"></label>
+                            <label>Account<input id="complaint-filter-account" class="form-input" type="search" placeholder="Tiếp nhận / Chủ trì / XL cuối"></label>
+                            <label>SR<input id="complaint-filter-sr" class="form-input" type="search" placeholder="Mã SR"></label>
+                        </div>
+                        <button id="btn-complaint-filter-clear" type="button" class="btn-ghost">Xóa bộ lọc</button>
+                    </div>
+                    <div class="complaint-sheet-config" aria-label="Google Sheets sync">
+                        <label for="complaint-sheet-id">Google Sheet URL hoặc ID</label>
+                        <input id="complaint-sheet-id" class="form-input" type="text" placeholder="Dán URL/ID của Sheet có hàng tiêu đề Complaint">
+                        <button id="btn-complaint-sheet-save" class="btn-ghost" type="button">Lưu Sheet</button>
+                        <button id="btn-complaint-sheet-sync" class="btn-ghost" type="button">Đồng bộ lại</button>
+                        <span id="complaint-sheet-status" role="status">Chưa đồng bộ</span>
                     </div>
 
                     <div class="ai-card" style="margin-top:16px; padding:0; overflow:hidden;">
@@ -313,28 +345,28 @@
                                         <div><span>Branch</span><strong id="complaint-detected-branch">CXD</strong></div>
                                     </div>
                                 </div>
-                                <details class="complaint-more-processing"><summary>Thông tin xử lý bổ sung</summary>
+                                <div class="complaint-more-processing">
                                     <div class="complaint-form-grid">
                                         <div class="input-group-col"><label>KV / Region</label><select id="complaint-kv" class="form-select"></select></div>
-                                        <div class="input-group-col"><label>CN / Branch</label><select id="complaint-cn" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>CN / Branch <span id="complaint-branch-origin" class="complaint-field-origin">Chọn thủ công hoặc dùng gợi ý</span></label><input id="complaint-cn-search" type="search" class="form-input" list="complaint-cn-options" placeholder="Gõ để tìm hoặc nhập chi nhánh"><datalist id="complaint-cn-options"></datalist><select id="complaint-cn" class="form-select" aria-hidden="true" tabindex="-1" style="display:none;"></select></div>
                                         <div class="input-group-col"><label>Số hợp đồng / điện thoại</label><input id="complaint-phone" type="text" class="form-input"></div>
-                                        <div class="input-group-col"><label>Nick FTel</label><select id="complaint-ftel" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>Nick FTel <span id="complaint-ftel-origin" class="complaint-field-origin">Chọn hoặc nhập tài khoản</span></label><input id="complaint-ftel-search" type="search" class="form-input" list="complaint-ftel-options" placeholder="Gõ để tìm hoặc nhập tài khoản"><datalist id="complaint-ftel-options"></datalist><select id="complaint-ftel" class="form-select" aria-hidden="true" tabindex="-1" style="display:none;"></select></div>
                                         <div class="input-group-col"><label>Cấp độ</label><select id="complaint-level" class="form-select"></select></div>
                                         <div class="input-group-col"><label>TG nhận mail (Alert)</label><input id="complaint-alert-time" type="datetime-local" class="form-input"></div>
                                         <div class="input-group-col"><label>TG phản hồi KH lần đầu tiên</label><input id="complaint-first-reply" type="datetime-local" class="form-input"></div>
                                         <div class="input-group-col"><label>TG xử lý HT</label><input id="complaint-complete-time" type="datetime-local" class="form-input"></div>
-                                        <div class="input-group-col"><label>Account Tiếp nhận</label><input id="complaint-account-receive" type="text" class="form-input" readonly></div>
-                                        <div class="input-group-col"><label>Account Chủ trì</label><input id="complaint-account-lead" type="text" class="form-input" readonly></div>
-                                        <div class="input-group-col"><label>Account XL cuối cùng</label><input id="complaint-account-last" type="text" class="form-input" readonly></div>
+                                        <div class="input-group-col"><label>Account Tiếp nhận</label><input id="complaint-account-receive" type="text" class="form-input" autocomplete="username"></div>
+                                        <div class="input-group-col"><label>Account Chủ trì</label><input id="complaint-account-lead" type="text" class="form-input" autocomplete="username"></div>
+                                        <div class="input-group-col"><label>Account XL cuối cùng</label><input id="complaint-account-last" type="text" class="form-input" autocomplete="username"></div>
                                         <div class="input-group-col"><label>Loại YC SR (cấp 1)</label><select id="complaint-request-type-1" class="form-select"></select></div>
                                         <div class="input-group-col"><label>Loại YC SR (cấp 2)</label><select id="complaint-request-type-2" class="form-select"></select></div>
                                         <div class="input-group-col"><label>Loại dịch vụ KH khiếu nại</label><select id="complaint-service-type" class="form-select"></select></div>
                                         <div class="input-group-col"><label>MÃ SR</label><input id="complaint-sr-code" type="text" class="form-input"></div>
                                         <div class="input-group-col"><label>Đơn vị xử lý</label><select id="complaint-handling-unit" class="form-select"></select></div>
-                                        <div class="input-group-col"><label>Voucher</label><select id="complaint-voucher" class="form-select"></select></div>
+                                        <div class="input-group-col"><label>Voucher</label><input id="complaint-voucher-search" type="search" class="form-input" list="complaint-voucher-options" placeholder="Gõ để tìm hoặc nhập voucher"><datalist id="complaint-voucher-options"></datalist><select id="complaint-voucher" class="form-select" aria-hidden="true" tabindex="-1" style="display:none;"></select></div>
                                         <div class="input-group-col"><label>KQ</label><select id="complaint-result" class="form-select"></select></div>
                                     </div>
-                                </details>
+                                </div>
                             </section>
                         </div>
                         <div class="modal-footer">
